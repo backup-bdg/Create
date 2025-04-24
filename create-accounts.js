@@ -19,7 +19,23 @@ try {
   let puppeteer, TwoCaptcha, twilio, fetch;
   try {
     puppeteer = require('puppeteer');
-    console.log('Successfully loaded puppeteer version:', puppeteer.version());
+    console.log('Successfully loaded puppeteer');
+    
+    // Log version if available
+    try {
+      if (typeof puppeteer.version === 'function') {
+        console.log('Puppeteer version:', puppeteer.version());
+      } else {
+        try {
+          const pkg = require('puppeteer/package.json');
+          console.log('Puppeteer version from package:', pkg.version);
+        } catch (pkgError) {
+          console.log('Could not determine puppeteer version');
+        }
+      }
+    } catch (versionError) {
+      console.log('Could not determine puppeteer version');
+    }
   } catch (error) {
     console.error('Error loading puppeteer:', error.message);
     console.error('Try running: npm install puppeteer@latest');
@@ -182,14 +198,33 @@ try {
         // Check puppeteer version to use appropriate headless mode
         let headlessMode;
         try {
-          const version = puppeteer.version();
-          const majorVersion = parseInt(version.split('.')[0], 10);
-          
-          // Newer versions of Puppeteer use headless: 'new' instead of headless: true
-          headlessMode = majorVersion >= 21 ? 'new' : true;
-          console.log(`Using headless mode '${headlessMode}' for Puppeteer v${version}`);
+          // Check if version() method exists (newer Puppeteer versions)
+          if (typeof puppeteer.version === 'function') {
+            const version = puppeteer.version();
+            const majorVersion = parseInt(version.split('.')[0], 10);
+            
+            // Newer versions of Puppeteer use headless: 'new' instead of headless: true
+            headlessMode = majorVersion >= 21 ? 'new' : true;
+            console.log(`Using headless mode '${headlessMode}' for Puppeteer v${version}`);
+          } else {
+            // For older versions that don't have version() method
+            console.log('Puppeteer version method not available, checking package version');
+            
+            try {
+              // Try to get version from package
+              const pkg = require('puppeteer/package.json');
+              console.log(`Detected Puppeteer version from package: ${pkg.version}`);
+              
+              const majorVersion = parseInt(pkg.version.split('.')[0], 10);
+              headlessMode = majorVersion >= 21 ? 'new' : true;
+            } catch (pkgError) {
+              console.log('Could not determine Puppeteer version from package, using default headless mode');
+              headlessMode = true;
+            }
+          }
         } catch (e) {
-          console.log('Error determining Puppeteer version, using default headless mode');
+          console.log(`Error determining Puppeteer version: ${e.message}`);
+          console.log('Using default headless mode');
           headlessMode = true;
         }
         
