@@ -89,6 +89,15 @@ async function createGmailAccounts(options = {}) {
       const output = data.toString();
       stdoutData += output;
       log(`Python script output: ${output.trim()}`, 'info');
+      
+      // Check for error indicators in the output and stop the process if found
+      if (output.includes("Exiting script due to error") || 
+          output.includes("Exiting script due to TimeoutException") ||
+          output.includes("Error finding username field")) {
+        log('Critical error detected in Python script output. Stopping the process.', 'error');
+        pythonProcess.kill(); // Kill the process
+        reject(new Error(`Gmail account creation failed: ${output}`));
+      }
     });
     
     // Collect stderr data
@@ -96,6 +105,11 @@ async function createGmailAccounts(options = {}) {
       const error = data.toString();
       stderrData += error;
       log(`Python script error: ${error.trim()}`, 'error');
+      
+      // Always stop on stderr output
+      log('Error detected in Python script. Stopping the process.', 'error');
+      pythonProcess.kill(); // Kill the process
+      reject(new Error(`Gmail account creation failed: ${error}`));
     });
     
     // Handle process completion

@@ -14,6 +14,7 @@ import tempfile
 import uuid
 import datetime
 import psutil  # Add this import for process management
+import sys  # Import sys for exiting the script
 
 def random_string(length=8):
     letters = string.ascii_lowercase
@@ -112,8 +113,43 @@ def gmailAcc(user_agent):
         last_name = driver.find_element(By.ID, "lastName")
         last_name.send_keys(last_name_text)
 
-        username = driver.find_element(By.ID, "username")
-        username.send_keys(username_text)
+        # Fix for the username element - use proper selector
+        # The error shows it's looking for ID "username" but it might have changed
+        # Let's try to find it by name or other attributes
+        try:
+            # Try different selectors for the username field
+            username = None
+            selectors = [
+                (By.ID, "username"),
+                (By.NAME, "username"),
+                (By.CSS_SELECTOR, "input[type='email']"),
+                (By.CSS_SELECTOR, "input[aria-label*='username']"),
+                (By.CSS_SELECTOR, "input[aria-label*='Gmail']")
+            ]
+            
+            for selector_type, selector_value in selectors:
+                try:
+                    username = driver.find_element(selector_type, selector_value)
+                    print(f"Found username field with selector: {selector_type}, {selector_value}")
+                    break
+                except:
+                    continue
+            
+            if not username:
+                # Take a screenshot to see what's on the page
+                driver.save_screenshot("username_field_not_found.png")
+                print("Could not find username field with any known selector. Taking screenshot for debugging.")
+                # Get the page source to analyze
+                with open("page_source.html", "w") as f:
+                    f.write(driver.page_source)
+                print("Saved page source to page_source.html for debugging.")
+                raise Exception("Username field not found with any known selector")
+            
+            username.send_keys(username_text)
+        except Exception as e:
+            print(f"Error finding username field: {e}")
+            driver.save_screenshot("username_error.png")
+            raise
 
         password = driver.find_element(By.NAME, "Passwd")
         password.send_keys(password_text)
@@ -138,6 +174,10 @@ def gmailAcc(user_agent):
 
         with open("error_log.txt", "w") as file:
             file.write(error_msg)
+        
+        # Exit the script with an error code
+        print("Exiting script due to TimeoutException")
+        sys.exit(1)
 
     except Exception as e:
         print("An error occurred:", e)
@@ -148,6 +188,10 @@ def gmailAcc(user_agent):
 
         with open("error_log.txt", "w") as file:
             file.write(error_msg)
+        
+        # Exit the script with an error code
+        print("Exiting script due to error")
+        sys.exit(1)
 
     finally:
         # Make sure to quit the driver to release resources
@@ -175,6 +219,10 @@ def run_with_delay(user_agent, delay=5):
     """Run the Gmail account creation with a delay between runs"""
     try:
         gmailAcc(user_agent)
+    except Exception as e:
+        print(f"Error in run_with_delay: {e}")
+        # Exit the script with an error code
+        sys.exit(1)
     finally:
         print(f"Waiting {delay} seconds before next run to ensure cleanup...")
         time.sleep(delay)
