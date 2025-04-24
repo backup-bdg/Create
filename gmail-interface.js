@@ -36,14 +36,21 @@ async function createGmailAccounts(options = {}) {
   try {
     const requirementsPath = path.join(__dirname, 'Gmail', 'requirements.txt');
     await new Promise((resolve, reject) => {
-      const pipProcess = spawn('pip', ['install', '-r', requirementsPath]);
+      // Use pip3 explicitly to ensure Python 3 is used
+      const pipProcess = spawn('pip3', ['install', '-r', requirementsPath]);
       
       pipProcess.stdout.on('data', (data) => {
         log(`Pip output: ${data.toString().trim()}`, 'info');
       });
       
       pipProcess.stderr.on('data', (data) => {
-        log(`Pip error: ${data.toString().trim()}`, 'warn');
+        const errorText = data.toString().trim();
+        // Only log as warning if it's not a critical error
+        if (errorText.includes('WARNING') || errorText.includes('DEPRECATION')) {
+          log(`Pip warning: ${errorText}`, 'warn');
+        } else {
+          log(`Pip error: ${errorText}`, 'error');
+        }
       });
       
       pipProcess.on('close', (code) => {
@@ -66,11 +73,14 @@ async function createGmailAccounts(options = {}) {
     throw new Error(`Failed to install Python dependencies: ${error.message}`);
   }
   
-  // Modify the Python script to create the specified number of accounts
+  // Create a modified version of the script with the account count
+  log(`Creating temporary script with ${accountCount} accounts...`, 'info');
   const originalScript = fs.readFileSync(scriptPath, 'utf8');
+  
+  // Update the config in the script to match the requested account count
   const modifiedScript = originalScript.replace(
-    /for _ in range\(5\): # Change/,
-    `for _ in range(${accountCount}): # Modified by Node.js interface`
+    /\'account_count\'\s*:\s*\d+/,
+    `'account_count': ${accountCount}`
   );
   
   // Write the modified script to a temporary file
@@ -79,7 +89,9 @@ async function createGmailAccounts(options = {}) {
   
   return new Promise((resolve, reject) => {
     // Spawn the Python process
-    const pythonProcess = spawn('python', [tempScriptPath]);
+    log('Running Python script...', 'info');
+    // Use python3 explicitly to ensure Python 3 is used
+    const pythonProcess = spawn('python3', [tempScriptPath]);
     
     let stdoutData = '';
     let stderrData = '';
@@ -116,7 +128,12 @@ async function createGmailAccounts(options = {}) {
     pythonProcess.on('close', (code) => {
       // Clean up the temporary script
       if (fs.existsSync(tempScriptPath)) {
-        fs.unlinkSync(tempScriptPath);
+        try {
+          fs.unlinkSync(tempScriptPath);
+          log('Temporary script cleaned up', 'info');
+        } catch (e) {
+          log(`Failed to clean up temporary script: ${e.message}`, 'warn');
+        }
       }
       
       if (code !== 0) {
