@@ -1,11 +1,114 @@
-const puppeteer = require('puppeteer');
-const fs = require('fs');
-const path = require('path');
-const { TwoCaptcha } = require('2captcha');
-const twilio = require('twilio');
-const { randomBytes } = require('crypto');
-const { setTimeout } = require('timers/promises');
-const utils = require('./utils');
+// Wrap the entire script in a try-catch block for better error handling
+try {
+  // Core Node.js modules
+  const fs = require('fs');
+  const path = require('path');
+  const { randomBytes } = require('crypto');
+  
+  // Handle potential issues with timers/promises in different Node versions
+  let setTimeoutPromise;
+  try {
+    ({ setTimeout: setTimeoutPromise } = require('timers/promises'));
+  } catch (error) {
+    console.error('Error importing timers/promises:', error.message);
+    // Fallback implementation using regular setTimeout
+    setTimeoutPromise = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+  }
+  
+  // Load npm dependencies with error handling
+  let puppeteer, TwoCaptcha, twilio;
+  try {
+    puppeteer = require('puppeteer');
+    console.log('Successfully loaded puppeteer');
+  } catch (error) {
+    console.error('Error loading puppeteer:', error.message);
+    process.exit(1);
+  }
+  
+  try {
+    ({ TwoCaptcha } = require('2captcha'));
+    console.log('Successfully loaded 2captcha');
+  } catch (error) {
+    console.error('Error loading 2captcha:', error.message);
+    process.exit(1);
+  }
+  
+  try {
+    twilio = require('twilio');
+    console.log('Successfully loaded twilio');
+  } catch (error) {
+    console.error('Error loading twilio:', error.message);
+    process.exit(1);
+  }
+  
+  // Load local utils module with robust path resolution
+  let utils;
+  try {
+    // Try multiple possible paths to find utils.js
+    const possiblePaths = [
+      './utils',
+      path.join(__dirname, 'utils'),
+      path.resolve(__dirname, 'utils'),
+      '../utils',
+      '../../utils'
+    ];
+    
+    let loaded = false;
+    for (const p of possiblePaths) {
+      try {
+        utils = require(p);
+        console.log(`Successfully loaded utils from: ${p}`);
+        loaded = true;
+        break;
+      } catch (e) {
+        console.log(`Failed to load utils from ${p}: ${e.message}`);
+      }
+    }
+    
+    if (!loaded) {
+      throw new Error('Could not load utils module from any path');
+    }
+  } catch (error) {
+    console.error('Error loading utils:', error.message);
+    // Create minimal utils functions to allow script to continue
+    utils = {
+      log: (message, type = 'info') => {
+        console.log(`[${type.toUpperCase()}] ${message}`);
+      },
+      retry: async (fn, options = {}) => {
+        const maxRetries = options.maxRetries || 3;
+        for (let i = 0; i < maxRetries; i++) {
+          try {
+            return await fn();
+          } catch (e) {
+            console.error(`Retry ${i+1}/${maxRetries} failed: ${e.message}`);
+            if (i < maxRetries - 1) {
+              await setTimeoutPromise(options.retryDelay || 2000);
+            } else {
+              throw e;
+            }
+          }
+        }
+      },
+      safeInteraction: async (page, action, options = {}) => {
+        if (options.selector) {
+          await page.waitForSelector(options.selector, { timeout: options.timeout || 10000 });
+        }
+        return action();
+      },
+      setupStealthBrowser: async (puppeteer) => {
+        return puppeteer.launch({
+          headless: true,
+          args: ['--no-sandbox', '--disable-setuid-sandbox']
+        });
+      },
+      humanDelay: async () => {
+        await setTimeoutPromise(Math.floor(Math.random() * 1000) + 500);
+      },
+      categorizeError: (error) => ({ type: 'ERROR', recoverable: false, message: error.message })
+    };
+    console.log('Created fallback utils functions');
+  }
 
 // Hardcoded credentials (obfuscated to bypass GitHub security)
 // For security reasons, these are split and will be joined at runtime
@@ -933,12 +1036,32 @@ async function createAccounts() {
   }
 }
 
-// Run the main function
+// Run the main function with comprehensive error handling
 (async () => {
   try {
+    console.log('Starting account creation process...');
     await createAccounts();
+    console.log('Account creation process completed successfully');
   } catch (error) {
-    utils.log('Script execution failed: ' + error.message, 'error');
+    console.error('=== SCRIPT EXECUTION FAILED ===');
+    console.error('Error details:', error);
+    console.error('Error message:', error.message);
+    console.error('Error stack:', error.stack);
+    
+    // Log with utils if available
+    if (utils && typeof utils.log === 'function') {
+      utils.log('Script execution failed: ' + error.message, 'error');
+    }
+    
+    // Exit with error code
     process.exit(1);
   }
 })();
+
+} catch (unhandledError) {
+  // Last resort error handling for syntax or other critical errors
+  console.error('=== CRITICAL UNHANDLED ERROR ===');
+  console.error('Error occurred at script initialization:');
+  console.error(unhandledError);
+  process.exit(1);
+}

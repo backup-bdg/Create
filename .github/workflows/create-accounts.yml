@@ -95,8 +95,23 @@ jobs:
           echo "Attempting to install audio libraries..."
           sudo apt-get install -y --no-install-recommends alsa-base alsa-utils || true
       
-      - name: Create accounts
-        run: node create-accounts.js
+      - name: Debug environment
+        run: |
+          echo "Workspace contents:"
+          ls -la
+          echo "Node.js version:"
+          node --version
+          echo "Checking module paths:"
+          node -e "console.log('Module paths:', module.paths)"
+          echo "Checking utils.js file:"
+          cat utils.js | head -10
+          
+      - name: Create accounts with verbose logging
+        run: |
+          echo "Ensuring utils.js is in the correct location:"
+          cp utils.js ./utils.js 2>/dev/null || echo "utils.js already in place"
+          echo "Running with increased debugging:"
+          NODE_DEBUG=module node --trace-warnings create-accounts.js
       
       - name: Upload accounts file
         uses: actions/upload-artifact@v4
