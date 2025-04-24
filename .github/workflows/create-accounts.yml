@@ -30,8 +30,9 @@ jobs:
           cat package.json
           echo "Checking for package-lock.json..."
           ls -la
-          echo "Installing dependencies..."
-          npm ci || npm install
+          echo "Installing dependencies using npm install..."
+          # Use npm install directly instead of npm ci to handle package-lock.json mismatches
+          npm install
       
       - name: Install Puppeteer dependencies
         run: |
