@@ -12,6 +12,8 @@ import string
 import time
 import tempfile
 import uuid
+import datetime
+import psutil  # Add this import for process management
 
 def random_string(length=8):
     letters = string.ascii_lowercase
@@ -30,7 +32,21 @@ def getUserAgents(url):
         print("Error fetching user agents:", e)
         return []
 
+def kill_chrome_processes():
+    """Kill any existing Chrome processes to avoid conflicts"""
+    for proc in psutil.process_iter(['pid', 'name']):
+        try:
+            # Check if the process name contains 'chrome' or 'chromedriver'
+            if 'chrome' in proc.info['name'].lower() or 'chromedriver' in proc.info['name'].lower():
+                print(f"Terminating process: {proc.info['name']} (PID: {proc.info['pid']})")
+                proc.terminate()
+        except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
+            pass
+
 def gmailAcc(user_agent):
+    # Kill any existing Chrome processes before starting a new one
+    kill_chrome_processes()
+    
     options = Options()
     options.add_argument(f"user-agent={user_agent}")
     options.add_argument("--start-maximized")
@@ -39,18 +55,39 @@ def gmailAcc(user_agent):
     options.add_argument("--no-sandbox")
     options.add_argument("--disable-dev-shm-usage")
     
-    # Create a unique user data directory for this Chrome instance
+    # Create a truly unique user data directory for this Chrome instance
+    # Combine timestamp, UUID, and process ID for maximum uniqueness
+    timestamp = datetime.datetime.now().strftime("%Y%m%d%H%M%S")
     unique_id = str(uuid.uuid4())
+    process_id = os.getpid()
     temp_dir = tempfile.gettempdir()
-    user_data_dir = os.path.join(temp_dir, f"chrome_data_{unique_id}")
+    user_data_dir = os.path.join(temp_dir, f"chrome_data_{timestamp}_{unique_id}_{process_id}")
+    
+    print(f"Using user data directory: {user_data_dir}")
     options.add_argument(f"--user-data-dir={user_data_dir}")
     
     # Add incognito mode to avoid profile issues
     options.add_argument("--incognito")
     
+    # Add headless mode option for GitHub Actions environment
+    # options.add_argument("--headless=new")
+    
+    # Disable extensions and GPU
+    options.add_argument("--disable-extensions")
+    options.add_argument("--disable-gpu")
+    
+    # Disable the Chrome first run experience
+    options.add_argument("--no-first-run")
+    options.add_argument("--no-default-browser-check")
+    
     driver = None
     try:
-        driver = webdriver.Chrome(options=options)
+        # Use service object with explicit timeout
+        from selenium.webdriver.chrome.service import Service
+        service = Service(timeout=60)
+        
+        # Create the driver with service and options
+        driver = webdriver.Chrome(service=service, options=options)
         wait = WebDriverWait(driver, 50)
 
         driver.get("https://www.gmail.com")
@@ -111,15 +148,23 @@ def gmailAcc(user_agent):
     finally:
         # Make sure to quit the driver to release resources
         if driver:
-            driver.quit()
+            try:
+                driver.quit()
+            except:
+                pass
         
         # Clean up the temporary user data directory
         try:
             if os.path.exists(user_data_dir):
                 import shutil
                 shutil.rmtree(user_data_dir, ignore_errors=True)
-        except:
+                print(f"Cleaned up user data directory: {user_data_dir}")
+        except Exception as e:
+            print(f"Error cleaning up user data directory: {e}")
             pass
+        
+        # Kill any remaining Chrome processes
+        kill_chrome_processes()
 
 userAgentsUrl = "https://gist.githubusercontent.com/pzb/b4b6f57144aea7827ae4/raw/cf847b76a142955b1410c8bcef3aabe221a63db1/user-agents.txt"
 user_agents = getUserAgents(userAgentsUrl)
