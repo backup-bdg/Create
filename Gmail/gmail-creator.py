@@ -10,7 +10,8 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 import string
 import time
-
+import tempfile
+import uuid
 
 def random_string(length=8):
     letters = string.ascii_lowercase
@@ -33,10 +34,25 @@ def gmailAcc(user_agent):
     options = Options()
     options.add_argument(f"user-agent={user_agent}")
     options.add_argument("--start-maximized")
-    driver = webdriver.Chrome(options=options)
-    wait = WebDriverWait(driver, 50)
-
+    
+    # Add these options to fix the user data directory issue
+    options.add_argument("--no-sandbox")
+    options.add_argument("--disable-dev-shm-usage")
+    
+    # Create a unique user data directory for this Chrome instance
+    unique_id = str(uuid.uuid4())
+    temp_dir = tempfile.gettempdir()
+    user_data_dir = os.path.join(temp_dir, f"chrome_data_{unique_id}")
+    options.add_argument(f"--user-data-dir={user_data_dir}")
+    
+    # Add incognito mode to avoid profile issues
+    options.add_argument("--incognito")
+    
+    driver = None
     try:
+        driver = webdriver.Chrome(options=options)
+        wait = WebDriverWait(driver, 50)
+
         driver.get("https://www.gmail.com")
 
         create_account_button = wait.until(EC.presence_of_element_located((By.XPATH, "//a[text()='Create account']")))
@@ -75,7 +91,8 @@ def gmailAcc(user_agent):
 
     except selenium.common.exceptions.TimeoutException as e:
         print("TimeoutException occurred:", e)
-        driver.save_screenshot("timeout_error.png")
+        if driver:
+            driver.save_screenshot("timeout_error.png")
         error_msg = f"TimeoutException occurred: {str(e)}\n"
 
         with open("error_log.txt", "w") as file:
@@ -84,14 +101,25 @@ def gmailAcc(user_agent):
     except Exception as e:
         print("An error occurred:", e)
         traceback.print_exc()
-        driver.save_screenshot("general_error.png")
+        if driver:
+            driver.save_screenshot("general_error.png")
         error_msg = f"An error occurred: {str(e)}\n"
 
         with open("error_log.txt", "w") as file:
             file.write(error_msg)
 
     finally:
-        driver.quit()
+        # Make sure to quit the driver to release resources
+        if driver:
+            driver.quit()
+        
+        # Clean up the temporary user data directory
+        try:
+            if os.path.exists(user_data_dir):
+                import shutil
+                shutil.rmtree(user_data_dir, ignore_errors=True)
+        except:
+            pass
 
 userAgentsUrl = "https://gist.githubusercontent.com/pzb/b4b6f57144aea7827ae4/raw/cf847b76a142955b1410c8bcef3aabe221a63db1/user-agents.txt"
 user_agents = getUserAgents(userAgentsUrl)
@@ -104,4 +132,4 @@ else:
     
     
 for _ in range(5): # Change
-    gmailAcc()
+    gmailAcc("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36")
