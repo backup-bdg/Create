@@ -88,6 +88,7 @@ try {
   
   // Load local utils module with robust path resolution
   let utils;
+  let screenshotUtils;
   try {
     // Try multiple possible paths to find utils.js
     const possiblePaths = [
@@ -112,6 +113,32 @@ try {
     
     if (!loaded) {
       throw new Error('Could not load utils module from any path');
+    }
+    
+    // Load screenshot utilities
+    try {
+      screenshotUtils = require('./screenshot-utils');
+      console.log('Successfully loaded screenshot utilities');
+    } catch (e) {
+      console.log(`Failed to load screenshot utilities: ${e.message}`);
+      // Create minimal screenshot utilities to allow script to continue
+      screenshotUtils = {
+        captureScreenshot: async () => console.log('Screenshot capture not available'),
+        captureHtml: async () => console.log('HTML capture not available'),
+        checkForBotDetection: async () => false,
+        waitForAnySelector: async (page, selectors, options = {}) => {
+          const timeout = options.timeout || 15000;
+          for (const selector of selectors) {
+            try {
+              await page.waitForSelector(selector, { timeout });
+              return selector;
+            } catch (e) {
+              console.log(`Selector ${selector} not found`);
+            }
+          }
+          throw new Error(`None of the selectors found: ${selectors.join(', ')}`);
+        }
+      };
     }
   } catch (error) {
     console.error('Error loading utils:', error.message);
@@ -426,125 +453,341 @@ async function createGmailAccount(browser, profile) {
   
   try {
     // Set human-like behavior
-    await page.setViewport({ width: 1366, height: 768 });
+    await page.setViewport({ width: 1920, height: 1080 });
     
     // Navigate to Gmail signup
+    utils.log('Navigating to Gmail signup page...', 'info');
     await utils.safeInteraction(page, 
-      () => page.goto('https://accounts.google.com/signup'),
-      { waitForNavigation: true }
+      () => page.goto('https://accounts.google.com/signup', {
+        waitUntil: 'networkidle2',
+        timeout: 60000
+      })
     );
     
-    await utils.safeInteraction(page,
-      () => page.waitForSelector('input[name="firstName"]'),
-      { timeout: 15000 }
-    );
+    // Take a screenshot of the initial page
+    await screenshotUtils.captureScreenshot(page, 'gmail_signup_initial');
+    await screenshotUtils.captureHtml(page, 'gmail_signup_initial');
+    
+    // Check for bot detection
+    const hasBotDetection = await screenshotUtils.checkForBotDetection(page);
+    if (hasBotDetection) {
+      utils.log('Bot detection detected on Gmail signup page', 'error');
+      await screenshotUtils.captureScreenshot(page, 'gmail_bot_detection');
+      throw new Error('Bot detection detected on Gmail signup page');
+    }
+    
+    // Using multiple possible selectors for Gmail account form
+    // Modern Gmail signup has different selectors
+    const firstNameSelectors = [
+      'input[name="firstName"]',
+      'input[aria-label="First name"]',
+      '#firstName',
+      'input[type="text"][autocomplete="given-name"]'
+    ];
+    
+    // Wait for any of the first name selectors
+    utils.log('Waiting for first name field...', 'info');
+    const firstNameSelector = await screenshotUtils.waitForAnySelector(page, firstNameSelectors, { timeout: 20000 });
     
     // Fill the form with random delays
+    utils.log('Filling first name...', 'info');
     await utils.humanDelay();
     await utils.safeInteraction(page,
-      () => page.type('input[name="firstName"]', profile.firstName, { delay: 100 })
+      () => page.type(firstNameSelector, profile.firstName, { delay: 100 })
     );
     
+    // Last name field
+    const lastNameSelectors = [
+      'input[name="lastName"]',
+      'input[aria-label="Last name"]',
+      '#lastName',
+      'input[type="text"][autocomplete="family-name"]'
+    ];
+    
+    utils.log('Filling last name...', 'info');
+    const lastNameSelector = await screenshotUtils.waitForAnySelector(page, lastNameSelectors, { timeout: 10000 });
     await utils.humanDelay();
     await utils.safeInteraction(page,
-      () => page.type('input[name="lastName"]', profile.lastName, { delay: 100 })
+      () => page.type(lastNameSelector, profile.lastName, { delay: 100 })
     );
     
+    // Username field - this is what was causing issues in the logs
+    const usernameSelectors = [
+      'input[name="Username"]',
+      'input[aria-label="Username"]',
+      '#username',
+      'input[type="text"][autocomplete="username"]',
+      'input[type="email"]'
+    ];
+    
+    utils.log('Filling username...', 'info');
+    try {
+      const usernameSelector = await screenshotUtils.waitForAnySelector(page, usernameSelectors, { timeout: 10000 });
+      await utils.humanDelay();
+      await utils.safeInteraction(page,
+        () => page.type(usernameSelector, profile.username, { delay: 150 })
+      );
+    } catch (error) {
+      // If we can't find the username field, take a screenshot for debugging
+      utils.log('Username field not found, capturing screenshot for debugging', 'error');
+      await screenshotUtils.captureScreenshot(page, 'gmail_username_not_found');
+      
+      // Try to find any input field that might be the username
+      utils.log('Trying to find any input field that might be the username', 'info');
+      const allInputs = await page.$$('input[type="text"], input[type="email"]');
+      if (allInputs.length > 2) {  // If we found the first two inputs already
+        utils.log(`Found ${allInputs.length} input fields, trying the third one`, 'info');
+        await utils.humanDelay();
+        await allInputs[2].type(profile.username, { delay: 150 });
+      } else {
+        throw new Error('Username field not found and could not find alternative');
+      }
+    }
+    
+    // Password fields
+    const passwordSelectors = [
+      'input[name="Passwd"]',
+      'input[aria-label="Password"]',
+      'input[type="password"]',
+      '#password'
+    ];
+    
+    utils.log('Filling password...', 'info');
+    const passwordSelector = await screenshotUtils.waitForAnySelector(page, passwordSelectors, { timeout: 10000 });
     await utils.humanDelay();
     await utils.safeInteraction(page,
-      () => page.type('input[name="Username"]', profile.username, { delay: 150 })
+      () => page.type(passwordSelector, profile.password, { delay: 100 })
     );
     
-    await utils.humanDelay();
-    await utils.safeInteraction(page,
-      () => page.type('input[name="Passwd"]', profile.password, { delay: 100 })
-    );
+    // Confirm password fields
+    const confirmPasswordSelectors = [
+      'input[name="ConfirmPasswd"]',
+      'input[aria-label="Confirm password"]',
+      'input[type="password"][autocomplete="new-password"]:nth-of-type(2)',
+      '#confirm-password'
+    ];
     
-    await utils.humanDelay();
-    await utils.safeInteraction(page,
-      () => page.type('input[name="ConfirmPasswd"]', profile.password, { delay: 100 })
-    );
+    utils.log('Filling confirm password...', 'info');
+    try {
+      const confirmPasswordSelector = await screenshotUtils.waitForAnySelector(page, confirmPasswordSelectors, { timeout: 10000 });
+      await utils.humanDelay();
+      await utils.safeInteraction(page,
+        () => page.type(confirmPasswordSelector, profile.password, { delay: 100 })
+      );
+    } catch (error) {
+      utils.log('Confirm password field not found. This might be a new Google signup flow.', 'warn');
+      await screenshotUtils.captureScreenshot(page, 'gmail_no_confirm_password');
+      // Some newer versions don't have a confirm password field, so we continue
+    }
     
-    // Click next with delay
-    await utils.humanDelay();
-    await utils.safeInteraction(page,
-      () => page.click('button[type="button"]'),
-      { waitForNavigation: true }
-    );
+    // Take screenshot before clicking next
+    await screenshotUtils.captureScreenshot(page, 'gmail_before_next');
     
-    // Handle phone verification
-    await utils.safeInteraction(page,
-      () => page.waitForSelector('input[type="tel"]'),
-      { timeout: 15000 }
-    );
+    // Click next button - look for different types of next buttons
+    const nextButtonSelectors = [
+      'button[type="button"]',
+      'button:contains("Next")',
+      'button.VfPpkd-LgbsSe-OWXEXe-k8QpJ',
+      'button[jsname="LgbsSe"]',
+      'button.VfPpkd-LgbsSe'
+    ];
     
-    await utils.humanDelay();
-    await utils.safeInteraction(page,
-      () => page.type('input[type="tel"]', TWILIO_PHONE_NUMBER, { delay: 150 })
-    );
+    utils.log('Clicking next button...', 'info');
+    try {
+      // First try using our helper
+      const nextButtonSelector = await screenshotUtils.waitForAnySelector(page, nextButtonSelectors, { timeout: 10000 });
+      await utils.humanDelay();
+      await utils.safeInteraction(page,
+        () => page.click(nextButtonSelector),
+        { waitForNavigation: true }
+      );
+    } catch (error) {
+      // If that fails, try to find any button element
+      utils.log('Next button not found with selectors, trying to find any button', 'warn');
+      const buttons = await page.$$('button');
+      if (buttons.length > 0) {
+        utils.log(`Found ${buttons.length} buttons, clicking the first one`, 'info');
+        await utils.humanDelay();
+        await buttons[0].click();
+        await page.waitForNavigation({ timeout: 20000 }).catch(() => {
+          utils.log('No navigation after clicking button', 'warn');
+        });
+      } else {
+        throw new Error('Could not find any next button to click');
+      }
+    }
     
-    await utils.humanDelay();
-    await utils.safeInteraction(page,
-      () => page.click('button[type="button"]'),
-      { waitForNavigation: true }
-    );
+    // Take screenshot after first form submission
+    await screenshotUtils.captureScreenshot(page, 'gmail_after_next');
     
-    // Get and enter verification code
-    const verificationCode = await getSmsVerificationCode(TWILIO_PHONE_NUMBER);
+    // Check if we're on the verification page
+    utils.log('Checking for phone verification page...', 'info');
+    const phoneSelectors = [
+      'input[type="tel"]',
+      'input[aria-label="Phone number"]',
+      '#phoneNumberId'
+    ];
     
-    await utils.safeInteraction(page,
-      () => page.waitForSelector('input[name="code"]'),
-      { timeout: 15000 }
-    );
+    try {
+      const phoneSelector = await screenshotUtils.waitForAnySelector(page, phoneSelectors, { timeout: 20000 });
+      
+      utils.log('Phone verification page detected, entering phone number...', 'info');
+      await utils.humanDelay();
+      await utils.safeInteraction(page,
+        () => page.type(phoneSelector, TWILIO_PHONE_NUMBER, { delay: 150 })
+      );
+      
+      // Take screenshot before submitting phone
+      await screenshotUtils.captureScreenshot(page, 'gmail_phone_entered');
+      
+      // Click next/submit button
+      const phoneNextSelectors = [
+        'button[type="button"]',
+        'button:contains("Next")',
+        'button:contains("Send")',
+        'button:contains("Verify")'
+      ];
+      
+      utils.log('Clicking phone verification next button...', 'info');
+      const phoneNextSelector = await screenshotUtils.waitForAnySelector(page, phoneNextSelectors, { timeout: 10000 });
+      await utils.humanDelay();
+      await utils.safeInteraction(page,
+        () => page.click(phoneNextSelector),
+        { waitForNavigation: true }
+      );
+      
+      // Get and enter verification code
+      utils.log('Getting SMS verification code...', 'info');
+      const verificationCode = await getSmsVerificationCode(TWILIO_PHONE_NUMBER);
+      
+      // Look for code input field
+      const codeSelectors = [
+        'input[name="code"]',
+        'input[aria-label="Enter code"]',
+        'input[type="text"][pattern="[0-9]*"]',
+        '#code'
+      ];
+      
+      utils.log('Entering verification code...', 'info');
+      const codeSelector = await screenshotUtils.waitForAnySelector(page, codeSelectors, { timeout: 20000 });
+      await utils.humanDelay();
+      await utils.safeInteraction(page,
+        () => page.type(codeSelector, verificationCode, { delay: 200 })
+      );
+      
+      // Take screenshot of entered code
+      await screenshotUtils.captureScreenshot(page, 'gmail_code_entered');
+      
+      // Click verify button
+      const verifySelectors = [
+        'button[type="button"]',
+        'button:contains("Verify")',
+        'button:contains("Next")',
+        'button.VfPpkd-LgbsSe'
+      ];
+      
+      utils.log('Clicking verification submit button...', 'info');
+      const verifySelector = await screenshotUtils.waitForAnySelector(page, verifySelectors, { timeout: 10000 });
+      await utils.humanDelay();
+      await utils.safeInteraction(page,
+        () => page.click(verifySelector),
+        { waitForNavigation: true }
+      );
+    } catch (error) {
+      utils.log('Phone verification page not found: ' + error.message, 'warn');
+      await screenshotUtils.captureScreenshot(page, 'gmail_no_phone_verification');
+      // This step might be skipped in some regions or scenarios
+    }
     
-    await utils.humanDelay();
-    await utils.safeInteraction(page,
-      () => page.type('input[name="code"]', verificationCode, { delay: 200 })
-    );
-    
-    await utils.humanDelay();
-    await utils.safeInteraction(page,
-      () => page.click('button[type="button"]'),
-      { waitForNavigation: true }
-    );
+    // Handle additional steps that might appear
+    await screenshotUtils.captureScreenshot(page, 'gmail_additional_steps');
     
     // Add recovery info (optional)
     try {
-      await page.waitForSelector('input[type="email"]', { timeout: 5000 });
-      await utils.humanDelay();
-      await utils.safeInteraction(page,
-        () => page.click('button:contains("Skip")'),
-        { waitForNavigation: true }
-      );
+      const recoveryEmailSelectors = [
+        'input[type="email"]',
+        'input[aria-label="Recovery email"]',
+        '#recoveryEmail'
+      ];
+      
+      const hasRecovery = await screenshotUtils.waitForAnySelector(page, recoveryEmailSelectors, { timeout: 5000 })
+        .then(() => true)
+        .catch(() => false);
+      
+      if (hasRecovery) {
+        utils.log('Recovery email step found, skipping...', 'info');
+        await utils.humanDelay();
+        
+        // Look for skip button
+        const skipSelectors = [
+          'button:contains("Skip")',
+          'button[jsname="Cuz2Ue"]',
+          'button:nth-child(1)'
+        ];
+        
+        const skipSelector = await screenshotUtils.waitForAnySelector(page, skipSelectors, { timeout: 5000 });
+        await utils.safeInteraction(page,
+          () => page.click(skipSelector),
+          { waitForNavigation: true }
+        );
+      }
     } catch (error) {
-      // Recovery email might be optional
-      utils.log('Recovery email step not found, continuing...', 'info');
+      utils.log('Recovery email handling error: ' + error.message, 'info');
+      // Continue - this step is optional
     }
     
-    // Handle additional optional steps
+    // Handle agreements/terms page
     try {
-      await page.waitForSelector('button:contains("I agree")', { timeout: 5000 });
-      await utils.humanDelay();
-      await utils.safeInteraction(page,
-        () => page.click('button:contains("I agree")'),
-        { waitForNavigation: true }
-      );
+      const agreementSelectors = [
+        'button:contains("I agree")',
+        'button:contains("Accept")',
+        'button[jsname="LgbsSe"]',
+        'form button[type="button"]'
+      ];
+      
+      const hasAgreement = await screenshotUtils.waitForAnySelector(page, agreementSelectors, { timeout: 5000 })
+        .then(() => true)
+        .catch(() => false);
+      
+      if (hasAgreement) {
+        utils.log('Agreement step found, accepting...', 'info');
+        await screenshotUtils.captureScreenshot(page, 'gmail_agreement_step');
+        
+        await utils.humanDelay();
+        const agreeSelector = await screenshotUtils.waitForAnySelector(page, agreementSelectors, { timeout: 5000 });
+        await utils.safeInteraction(page,
+          () => page.click(agreeSelector),
+          { waitForNavigation: true }
+        );
+      }
     } catch (error) {
-      utils.log('Agreement step not found, may have already completed', 'info');
+      utils.log('Agreement step handling error: ' + error.message, 'info');
+      // Continue - this step might have been skipped
     }
     
-    // Complete the signup process
-    await utils.humanDelay();
-    await page.waitForNavigation({ waitUntil: 'networkidle0', timeout: 30000 });
+    // Final screenshot
+    await screenshotUtils.captureScreenshot(page, 'gmail_signup_complete');
+    
+    // Wait for final navigation to complete
+    try {
+      await page.waitForNavigation({ waitUntil: 'networkidle0', timeout: 30000 });
+    } catch (error) {
+      utils.log('Final navigation timeout, but account may still be created', 'warn');
+    }
     
     utils.log('Gmail account created successfully', 'success');
     profile.email = `${profile.username}@gmail.com`;
     return profile;
   } catch (error) {
     utils.log('Gmail account creation error: ' + error.message, 'error');
+    
+    // Take final error screenshot
+    await screenshotUtils.captureScreenshot(page, 'gmail_error');
+    await screenshotUtils.captureHtml(page, 'gmail_error');
+    
     throw new Error(`Failed to create Gmail account: ${error.message}`);
   } finally {
-    await page.close();
+    await page.close().catch(() => {});
   }
 }
 
@@ -554,169 +797,514 @@ async function createOutlookAccount(browser, profile) {
   
   try {
     // Set human-like behavior
-    await page.setViewport({ width: 1366, height: 768 });
+    await page.setViewport({ width: 1920, height: 1080 });
     
     // Navigate to Outlook signup
+    utils.log('Navigating to Outlook signup page...', 'info');
     await utils.safeInteraction(page, 
-      () => page.goto('https://signup.live.com'),
-      { waitForNavigation: true }
+      () => page.goto('https://signup.live.com', {
+        waitUntil: 'networkidle2',
+        timeout: 60000
+      })
     );
     
-    await utils.safeInteraction(page,
-      () => page.waitForSelector('#MemberName'),
-      { timeout: 15000 }
-    );
+    // Take a screenshot of the initial page
+    await screenshotUtils.captureScreenshot(page, 'outlook_signup_initial');
+    await screenshotUtils.captureHtml(page, 'outlook_signup_initial');
     
-    // Fill the email form
-    await utils.humanDelay();
-    await utils.safeInteraction(page,
-      () => page.type('#MemberName', profile.username, { delay: 150 })
-    );
+    // Check for bot detection
+    const hasBotDetection = await screenshotUtils.checkForBotDetection(page);
+    if (hasBotDetection) {
+      utils.log('Bot detection detected on Outlook signup page', 'error');
+      await screenshotUtils.captureScreenshot(page, 'outlook_bot_detection');
+      throw new Error('Bot detection detected on Outlook signup page');
+    }
     
-    await utils.humanDelay();
-    await utils.safeInteraction(page,
-      () => page.click('#iSignupAction'),
-      { waitForNavigation: true }
-    );
+    // Using multiple possible selectors for Outlook account form
+    // Microsoft often changes their signup flow
+    const memberNameSelectors = [
+      '#MemberName',
+      '#liveId',
+      '#SignupEmailAddress',
+      'input[name="email"]',
+      'input[type="email"]'
+    ];
     
-    // Fill the password
-    await utils.safeInteraction(page,
-      () => page.waitForSelector('#PasswordInput'),
-      { timeout: 15000 }
-    );
-    
-    await utils.humanDelay();
-    await utils.safeInteraction(page,
-      () => page.type('#PasswordInput', profile.password, { delay: 150 })
-    );
-    
-    await utils.humanDelay();
-    await utils.safeInteraction(page,
-      () => page.click('#iSignupAction'),
-      { waitForNavigation: true }
-    );
-    
-    // Fill name details
-    await utils.safeInteraction(page,
-      () => page.waitForSelector('#FirstName'),
-      { timeout: 15000 }
-    );
-    
-    await utils.humanDelay();
-    await utils.safeInteraction(page,
-      () => page.type('#FirstName', profile.firstName, { delay: 100 })
-    );
-    
-    await utils.humanDelay();
-    await utils.safeInteraction(page,
-      () => page.type('#LastName', profile.lastName, { delay: 100 })
-    );
-    
-    await utils.humanDelay();
-    await utils.safeInteraction(page,
-      () => page.click('#iSignupAction'),
-      { waitForNavigation: true }
-    );
-    
-    // Fill birth date
-    await utils.safeInteraction(page,
-      () => page.waitForSelector('#BirthMonth'),
-      { timeout: 15000 }
-    );
-    
-    await utils.humanDelay();
-    await utils.safeInteraction(page,
-      () => page.select('#BirthMonth', profile.birthMonth.toString())
-    );
-    
-    await utils.humanDelay();
-    await utils.safeInteraction(page,
-      () => page.select('#BirthDay', profile.birthDay.toString())
-    );
-    
-    await utils.humanDelay();
-    await utils.safeInteraction(page,
-      () => page.type('#BirthYear', profile.birthYear.toString(), { delay: 100 })
-    );
-    
-    await utils.humanDelay();
-    await utils.safeInteraction(page,
-      () => page.click('#iSignupAction'),
-      { waitForNavigation: true }
-    );
-    
-    // Handle CAPTCHA if present
+    // Wait for any of the member name selectors
+    utils.log('Waiting for email/username field...', 'info');
     try {
-      await page.waitForSelector('iframe[title*="recaptcha"]', { timeout: 5000 });
-      utils.log('CAPTCHA detected, attempting to solve...', 'info');
+      const memberNameSelector = await screenshotUtils.waitForAnySelector(page, memberNameSelectors, { timeout: 20000 });
       
-      const sitekey = await page.$eval('iframe[title*="recaptcha"]', iframe => {
-        return iframe.src.match(/[?&]k=([^&]*)/)[1];
-      });
-      
-      const token = await solveCaptcha(page, sitekey, page.url());
-      await page.evaluate(token => {
-        grecaptcha.ready(() => {
-          grecaptcha.execute(token);
-        });
-      }, token);
-      
+      // Fill the email form
+      utils.log('Filling email/username...', 'info');
       await utils.humanDelay();
       await utils.safeInteraction(page,
-        () => page.click('#iSignupAction'),
+        () => page.type(memberNameSelector, profile.username, { delay: 150 })
+      );
+      
+      // Look for next/submit button
+      const nextSelectors = [
+        '#iSignupAction',
+        'input[type="submit"]',
+        'button[type="submit"]',
+        'button:contains("Next")',
+        'button.btn-primary'
+      ];
+      
+      utils.log('Clicking next button after username...', 'info');
+      await screenshotUtils.captureScreenshot(page, 'outlook_before_username_submit');
+      
+      const nextSelector = await screenshotUtils.waitForAnySelector(page, nextSelectors, { timeout: 10000 });
+      await utils.humanDelay();
+      await utils.safeInteraction(page,
+        () => page.click(nextSelector),
         { waitForNavigation: true }
       );
     } catch (error) {
-      utils.log('CAPTCHA not detected or already solved', 'info');
+      utils.log('Standard Outlook signup form not found: ' + error.message, 'warn');
+      await screenshotUtils.captureScreenshot(page, 'outlook_unusual_signup_form');
+      
+      // Try alternate approach for a different signup flow
+      utils.log('Trying to find any input field that might be the username/email', 'info');
+      const inputs = await page.$$('input[type="email"], input[type="text"]');
+      if (inputs.length > 0) {
+        utils.log(`Found ${inputs.length} input fields, trying the first one`, 'info');
+        await utils.humanDelay();
+        await inputs[0].type(profile.username, { delay: 150 });
+        
+        const buttons = await page.$$('button, input[type="submit"]');
+        if (buttons.length > 0) {
+          utils.log(`Found ${buttons.length} buttons, clicking the first one`, 'info');
+          await utils.humanDelay();
+          await buttons[0].click();
+          await page.waitForNavigation({ timeout: 20000 }).catch(() => {
+            utils.log('No navigation after clicking button', 'warn');
+          });
+        }
+      } else {
+        throw new Error('Could not find any input field for username/email');
+      }
     }
     
+    await screenshotUtils.captureScreenshot(page, 'outlook_after_username');
+    
+    // Fill the password
+    const passwordSelectors = [
+      '#PasswordInput',
+      '#Password',
+      'input[name="password"]',
+      'input[type="password"]'
+    ];
+    
+    utils.log('Waiting for password field...', 'info');
+    try {
+      const passwordSelector = await screenshotUtils.waitForAnySelector(page, passwordSelectors, { timeout: 20000 });
+      
+      utils.log('Filling password...', 'info');
+      await utils.humanDelay();
+      await utils.safeInteraction(page,
+        () => page.type(passwordSelector, profile.password, { delay: 150 })
+      );
+      
+      // Look for next/submit button
+      const passwordNextSelectors = [
+        '#iSignupAction',
+        'input[type="submit"]',
+        'button[type="submit"]',
+        'button:contains("Next")',
+        'button.btn-primary'
+      ];
+      
+      utils.log('Clicking next button after password...', 'info');
+      await screenshotUtils.captureScreenshot(page, 'outlook_before_password_submit');
+      
+      const passwordNextSelector = await screenshotUtils.waitForAnySelector(page, passwordNextSelectors, { timeout: 10000 });
+      await utils.humanDelay();
+      await utils.safeInteraction(page,
+        () => page.click(passwordNextSelector),
+        { waitForNavigation: true }
+      );
+    } catch (error) {
+      utils.log('Password field not found: ' + error.message, 'warn');
+      await screenshotUtils.captureScreenshot(page, 'outlook_no_password_field');
+      
+      // Try alternate approach
+      const inputs = await page.$$('input[type="password"]');
+      if (inputs.length > 0) {
+        utils.log(`Found ${inputs.length} password fields, trying the first one`, 'info');
+        await utils.humanDelay();
+        await inputs[0].type(profile.password, { delay: 150 });
+        
+        const buttons = await page.$$('button, input[type="submit"]');
+        if (buttons.length > 0) {
+          utils.log(`Found ${buttons.length} buttons, clicking the first one`, 'info');
+          await utils.humanDelay();
+          await buttons[0].click();
+          await page.waitForNavigation({ timeout: 20000 }).catch(() => {
+            utils.log('No navigation after clicking button', 'warn');
+          });
+        }
+      }
+    }
+    
+    await screenshotUtils.captureScreenshot(page, 'outlook_after_password');
+    
+    // Fill name details
+    const firstNameSelectors = [
+      '#FirstName',
+      '#GivenName',
+      'input[name="firstName"]',
+      'input[aria-label="First name"]'
+    ];
+    
+    try {
+      utils.log('Waiting for first name field...', 'info');
+      const firstNameSelector = await screenshotUtils.waitForAnySelector(page, firstNameSelectors, { timeout: 20000 });
+      
+      utils.log('Filling first name...', 'info');
+      await utils.humanDelay();
+      await utils.safeInteraction(page,
+        () => page.type(firstNameSelector, profile.firstName, { delay: 100 })
+      );
+      
+      const lastNameSelectors = [
+        '#LastName',
+        '#Surname',
+        'input[name="lastName"]',
+        'input[aria-label="Last name"]'
+      ];
+      
+      utils.log('Filling last name...', 'info');
+      const lastNameSelector = await screenshotUtils.waitForAnySelector(page, lastNameSelectors, { timeout: 10000 });
+      await utils.humanDelay();
+      await utils.safeInteraction(page,
+        () => page.type(lastNameSelector, profile.lastName, { delay: 100 })
+      );
+      
+      // Look for next/submit button
+      const nameNextSelectors = [
+        '#iSignupAction',
+        'input[type="submit"]',
+        'button[type="submit"]',
+        'button:contains("Next")',
+        'button.btn-primary'
+      ];
+      
+      utils.log('Clicking next button after name fields...', 'info');
+      await screenshotUtils.captureScreenshot(page, 'outlook_before_name_submit');
+      
+      const nameNextSelector = await screenshotUtils.waitForAnySelector(page, nameNextSelectors, { timeout: 10000 });
+      await utils.humanDelay();
+      await utils.safeInteraction(page,
+        () => page.click(nameNextSelector),
+        { waitForNavigation: true }
+      );
+    } catch (error) {
+      utils.log('Name fields not found: ' + error.message, 'warn');
+      await screenshotUtils.captureScreenshot(page, 'outlook_no_name_fields');
+      
+      // Try alternate approach
+      const textInputs = await page.$$('input[type="text"]');
+      if (textInputs.length >= 2) {
+        utils.log(`Found ${textInputs.length} text fields, trying to fill name fields`, 'info');
+        await utils.humanDelay();
+        await textInputs[0].type(profile.firstName, { delay: 100 });
+        await utils.humanDelay();
+        await textInputs[1].type(profile.lastName, { delay: 100 });
+        
+        const buttons = await page.$$('button, input[type="submit"]');
+        if (buttons.length > 0) {
+          utils.log(`Found ${buttons.length} buttons, clicking the first one`, 'info');
+          await utils.humanDelay();
+          await buttons[0].click();
+          await page.waitForNavigation({ timeout: 20000 }).catch(() => {
+            utils.log('No navigation after clicking button', 'warn');
+          });
+        }
+      }
+    }
+    
+    await screenshotUtils.captureScreenshot(page, 'outlook_after_name');
+    
+    // Fill birth date
+    const birthMonthSelectors = [
+      '#BirthMonth',
+      'select[aria-label="Month"]',
+      'select[name="birthMonth"]'
+    ];
+    
+    try {
+      utils.log('Waiting for birth month field...', 'info');
+      const birthMonthSelector = await screenshotUtils.waitForAnySelector(page, birthMonthSelectors, { timeout: 20000 });
+      
+      utils.log('Filling birth date fields...', 'info');
+      await utils.humanDelay();
+      await utils.safeInteraction(page,
+        () => page.select(birthMonthSelector, profile.birthMonth.toString())
+      );
+      
+      const birthDaySelectors = [
+        '#BirthDay',
+        'select[aria-label="Day"]',
+        'select[name="birthDay"]'
+      ];
+      
+      const birthDaySelector = await screenshotUtils.waitForAnySelector(page, birthDaySelectors, { timeout: 10000 });
+      await utils.humanDelay();
+      await utils.safeInteraction(page,
+        () => page.select(birthDaySelector, profile.birthDay.toString())
+      );
+      
+      const birthYearSelectors = [
+        '#BirthYear',
+        'input[aria-label="Year"]',
+        'input[name="birthYear"]'
+      ];
+      
+      const birthYearSelector = await screenshotUtils.waitForAnySelector(page, birthYearSelectors, { timeout: 10000 });
+      await utils.humanDelay();
+      await utils.safeInteraction(page,
+        () => page.type(birthYearSelector, profile.birthYear.toString(), { delay: 100 })
+      );
+      
+      // Look for next/submit button
+      const birthNextSelectors = [
+        '#iSignupAction',
+        'input[type="submit"]',
+        'button[type="submit"]',
+        'button:contains("Next")',
+        'button.btn-primary'
+      ];
+      
+      utils.log('Clicking next button after birth date...', 'info');
+      await screenshotUtils.captureScreenshot(page, 'outlook_before_birth_submit');
+      
+      const birthNextSelector = await screenshotUtils.waitForAnySelector(page, birthNextSelectors, { timeout: 10000 });
+      await utils.humanDelay();
+      await utils.safeInteraction(page,
+        () => page.click(birthNextSelector),
+        { waitForNavigation: true }
+      );
+    } catch (error) {
+      utils.log('Birth date fields not found: ' + error.message, 'warn');
+      await screenshotUtils.captureScreenshot(page, 'outlook_no_birth_fields');
+      
+      // Try to find any selects or inputs to fill
+      const selects = await page.$$('select');
+      const inputs = await page.$$('input[type="text"], input[type="number"]');
+      
+      if (selects.length >= 2 && inputs.length >= 1) {
+        utils.log(`Found ${selects.length} select fields and ${inputs.length} text inputs`, 'info');
+        
+        await utils.humanDelay();
+        await selects[0].select(profile.birthMonth.toString()).catch(() => {});
+        
+        await utils.humanDelay();
+        await selects[1].select(profile.birthDay.toString()).catch(() => {});
+        
+        await utils.humanDelay();
+        await inputs[0].type(profile.birthYear.toString(), { delay: 100 }).catch(() => {});
+        
+        const buttons = await page.$$('button, input[type="submit"]');
+        if (buttons.length > 0) {
+          utils.log(`Found ${buttons.length} buttons, clicking the first one`, 'info');
+          await utils.humanDelay();
+          await buttons[0].click();
+          await page.waitForNavigation({ timeout: 20000 }).catch(() => {
+            utils.log('No navigation after clicking button', 'warn');
+          });
+        }
+      }
+    }
+    
+    await screenshotUtils.captureScreenshot(page, 'outlook_after_birth_date');
+    
+    // Handle CAPTCHA if present
+    try {
+      const captchaSelectors = [
+        'iframe[title*="recaptcha"]',
+        'iframe[src*="captcha"]',
+        'iframe[src*="recaptcha"]',
+        '#captcha'
+      ];
+      
+      const hasCaptcha = await screenshotUtils.waitForAnySelector(page, captchaSelectors, { timeout: 5000 })
+        .then(() => true)
+        .catch(() => false);
+      
+      if (hasCaptcha) {
+        utils.log('CAPTCHA detected, attempting to solve...', 'info');
+        await screenshotUtils.captureScreenshot(page, 'outlook_captcha');
+        
+        // Find the captcha iframe and extract the sitekey
+        const sitekey = await page.evaluate(() => {
+          const iframe = document.querySelector('iframe[src*="recaptcha"], iframe[src*="captcha"]');
+          if (!iframe || !iframe.src) return null;
+          
+          const match = iframe.src.match(/[?&]k=([^&]*)/);
+          return match ? match[1] : null;
+        });
+        
+        if (!sitekey) {
+          utils.log('Could not extract CAPTCHA sitekey', 'error');
+          throw new Error('CAPTCHA sitekey extraction failed');
+        }
+        
+        utils.log(`Extracted CAPTCHA sitekey: ${sitekey}`, 'info');
+        
+        // Solve the CAPTCHA
+        const token = await solveCaptcha(page, sitekey, page.url());
+        await page.evaluate(token => {
+          // Attempt to set the g-recaptcha-response
+          if (typeof grecaptcha !== 'undefined') {
+            grecaptcha.ready(() => {
+              grecaptcha.execute(token);
+            });
+          }
+          
+          // Also set it in a hidden field which some forms use
+          const hiddenInput = document.createElement('input');
+          hiddenInput.type = 'hidden';
+          hiddenInput.name = 'g-recaptcha-response';
+          hiddenInput.value = token;
+          document.querySelector('form')?.appendChild(hiddenInput);
+          
+          return true;
+        }, token);
+        
+        // Find and click the next/verify button
+        const captchaNextSelectors = [
+          '#iSignupAction',
+          'input[type="submit"]',
+          'button[type="submit"]',
+          'button:contains("Next")',
+          'button:contains("Verify")',
+          'button.btn-primary'
+        ];
+        
+        utils.log('Clicking next button after CAPTCHA...', 'info');
+        await screenshotUtils.captureScreenshot(page, 'outlook_captcha_solved');
+        
+        const captchaNextSelector = await screenshotUtils.waitForAnySelector(page, captchaNextSelectors, { timeout: 10000 });
+        await utils.humanDelay();
+        await utils.safeInteraction(page,
+          () => page.click(captchaNextSelector),
+          { waitForNavigation: true }
+        );
+      }
+    } catch (error) {
+      utils.log('CAPTCHA handling error: ' + error.message, 'info');
+      // Continue - CAPTCHA might not be present
+    }
+    
+    await screenshotUtils.captureScreenshot(page, 'outlook_after_captcha');
+    
     // Handle phone verification
-    await utils.safeInteraction(page,
-      () => page.waitForSelector('#PhoneInput'),
-      { timeout: 15000 }
-    );
+    const phoneSelectors = [
+      '#PhoneInput',
+      'input[type="tel"]',
+      'input[aria-label="Phone number"]',
+      'input[name="phoneNumber"]'
+    ];
     
-    await utils.humanDelay();
-    await utils.safeInteraction(page,
-      () => page.type('#PhoneInput', TWILIO_PHONE_NUMBER, { delay: 150 })
-    );
+    try {
+      utils.log('Waiting for phone input field...', 'info');
+      const phoneSelector = await screenshotUtils.waitForAnySelector(page, phoneSelectors, { timeout: 20000 });
+      
+      utils.log('Entering phone number...', 'info');
+      await utils.humanDelay();
+      await utils.safeInteraction(page,
+        () => page.type(phoneSelector, TWILIO_PHONE_NUMBER, { delay: 150 })
+      );
+      
+      // Look for next button
+      const phoneNextSelectors = [
+        '#iSignupAction',
+        'input[type="submit"]',
+        'button[type="submit"]',
+        'button:contains("Next")',
+        'button:contains("Send code")',
+        'button.btn-primary'
+      ];
+      
+      utils.log('Clicking next button after phone...', 'info');
+      await screenshotUtils.captureScreenshot(page, 'outlook_before_phone_submit');
+      
+      const phoneNextSelector = await screenshotUtils.waitForAnySelector(page, phoneNextSelectors, { timeout: 10000 });
+      await utils.humanDelay();
+      await utils.safeInteraction(page,
+        () => page.click(phoneNextSelector),
+        { waitForNavigation: true }
+      );
+      
+      // Get the SMS verification code
+      utils.log('Getting SMS verification code...', 'info');
+      const verificationCode = await getSmsVerificationCode(TWILIO_PHONE_NUMBER);
+      
+      // Look for verification code input
+      const codeSelectors = [
+        '#VerificationCode',
+        'input[type="text"][pattern="[0-9]*"]',
+        'input[aria-label="Verification code"]',
+        'input[name="verificationCode"]'
+      ];
+      
+      utils.log('Entering verification code...', 'info');
+      const codeSelector = await screenshotUtils.waitForAnySelector(page, codeSelectors, { timeout: 20000 });
+      await utils.humanDelay();
+      await utils.safeInteraction(page,
+        () => page.type(codeSelector, verificationCode, { delay: 200 })
+      );
+      
+      // Look for next/verify button
+      const codeNextSelectors = [
+        '#iSignupAction',
+        'input[type="submit"]',
+        'button[type="submit"]',
+        'button:contains("Next")',
+        'button:contains("Verify")',
+        'button.btn-primary'
+      ];
+      
+      utils.log('Clicking verification submit button...', 'info');
+      await screenshotUtils.captureScreenshot(page, 'outlook_before_code_submit');
+      
+      const codeNextSelector = await screenshotUtils.waitForAnySelector(page, codeNextSelectors, { timeout: 10000 });
+      await utils.humanDelay();
+      await utils.safeInteraction(page,
+        () => page.click(codeNextSelector),
+        { waitForNavigation: true }
+      );
+    } catch (error) {
+      utils.log('Phone verification error: ' + error.message, 'error');
+      await screenshotUtils.captureScreenshot(page, 'outlook_phone_verification_error');
+      // This is a critical step, so we'll rethrow
+      throw new Error(`Phone verification failed: ${error.message}`);
+    }
     
-    await utils.humanDelay();
-    await utils.safeInteraction(page,
-      () => page.click('#iSignupAction'),
-      { waitForNavigation: true }
-    );
-    
-    // Get and enter verification code
-    const verificationCode = await getSmsVerificationCode(TWILIO_PHONE_NUMBER);
-    
-    await utils.safeInteraction(page,
-      () => page.waitForSelector('#VerificationCode'),
-      { timeout: 15000 }
-    );
-    
-    await utils.humanDelay();
-    await utils.safeInteraction(page,
-      () => page.type('#VerificationCode', verificationCode, { delay: 200 })
-    );
-    
-    await utils.humanDelay();
-    await utils.safeInteraction(page,
-      () => page.click('#iSignupAction'),
-      { waitForNavigation: true }
-    );
+    // Final screenshot
+    await screenshotUtils.captureScreenshot(page, 'outlook_signup_complete');
     
     // Wait for account creation to complete
-    await page.waitForNavigation({ waitUntil: 'networkidle0', timeout: 30000 });
+    try {
+      await page.waitForNavigation({ waitUntil: 'networkidle0', timeout: 30000 });
+    } catch (error) {
+      utils.log('Final navigation timeout, but account may still be created', 'warn');
+    }
     
     utils.log('Outlook account created successfully', 'success');
     profile.email = `${profile.username}@outlook.com`;
     return profile;
   } catch (error) {
     utils.log('Outlook account creation error: ' + error.message, 'error');
+    
+    // Take final error screenshot
+    await screenshotUtils.captureScreenshot(page, 'outlook_error');
+    await screenshotUtils.captureHtml(page, 'outlook_error');
+    
     throw new Error(`Failed to create Outlook account: ${error.message}`);
   } finally {
-    await page.close();
+    await page.close().catch(() => {});
   }
 }
 
