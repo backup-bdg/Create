@@ -1,0 +1,18 @@
+{
+  "name": "account-creator",
+  "version": "1.0.0",
+  "description": "Automated account creation for email and Apple ID",
+  "main": "create-accounts.js",
+  "scripts": {
+    "start": "node create-accounts.js"
+  },
+  "dependencies": {
+    "puppeteer": "^20.7.3",
+    "2captcha": "^3.0.6",
+    "twilio": "^4.11.0"
+  },
+  "engines": {
+    "node": ">=14.0.0"
+  },
+  "private": true
+}
