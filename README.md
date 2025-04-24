@@ -1,10 +1,10 @@
 # Automated Account Creator
 
-This project automatically creates email accounts (Gmail or Outlook) and uses them to sign up for Apple IDs. It handles CAPTCHA challenges using 2Captcha and phone verification using Twilio.
+This project automatically creates Gmail accounts using a Python script and uses them to sign up for Apple IDs. It handles CAPTCHA challenges using 2Captcha and phone verification using Twilio.
 
 ## Features
 
-- Automated creation of Gmail or Outlook accounts
+- Automated creation of Gmail accounts using Python and Selenium
 - Random username and password generation
 - Apple ID signup automation
 - CAPTCHA solving with 2Captcha
@@ -16,6 +16,9 @@ This project automatically creates email accounts (Gmail or Outlook) and uses th
 ## Prerequisites
 
 - Node.js 14 or higher
+- Python 3.x
+- Selenium for Python
+- Chrome WebDriver
 - 2Captcha API key (for solving CAPTCHAs)
 - Twilio account with a phone number (for SMS verification)
 - GitHub repository (for GitHub Actions integration)
@@ -29,13 +32,21 @@ git clone https://github.com/yourusername/account-creator.git
 cd account-creator
 ```
 
-2. **Install dependencies:**
+2. **Install Node.js dependencies:**
 
 ```bash
 npm install
 ```
 
-3. **Credentials configuration:**
+3. **Install Python dependencies:**
+
+```bash
+cd Gmail
+pip install -r requirements.txt
+# or run the install.bat file on Windows
+```
+
+4. **Credentials configuration:**
 
 The script has been configured with hardcoded credentials for:
 - 2Captcha API
@@ -69,6 +80,14 @@ The created accounts will be saved in `accounts.txt`.
 5. Click "Run workflow" again
 6. Once complete, download the "created-accounts" artifact to access the accounts.txt file
 
+## How It Works
+
+1. The Node.js script (`create-accounts.js`) calls the Python Gmail creator script to create Gmail accounts
+2. The Python script uses Selenium to automate the Gmail account creation process
+3. The created Gmail accounts are saved to a file and read by the Node.js script
+4. The Node.js script then uses Puppeteer to create Apple IDs using the Gmail accounts
+5. All created accounts are saved to `accounts.txt`
+
 ## Configuration
 
 The script is configurable through environment variables:
@@ -94,6 +113,7 @@ The script is configurable through environment variables:
 - **Account creation failures**: The script includes error handling with retries. Check logs for details
 - **GitHub Actions failures**: Check the workflow logs for error details
 - **API credential issues**: If you need to update the obfuscated credentials, edit the respective parts in the code
+- **Python script issues**: Check the error_log.txt file created by the Python script
 
 ## Customization
 
