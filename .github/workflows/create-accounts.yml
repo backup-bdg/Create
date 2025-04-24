@@ -25,7 +25,13 @@ jobs:
           cache: 'npm'
       
       - name: Install dependencies
-        run: npm ci || npm install
+        run: |
+          echo "Using package.json from repository..."
+          cat package.json
+          echo "Checking for package-lock.json..."
+          ls -la
+          echo "Installing dependencies..."
+          npm ci || npm install
       
       - name: Install Puppeteer dependencies
         run: |
