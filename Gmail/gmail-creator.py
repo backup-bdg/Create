@@ -27,7 +27,6 @@ from selenium.common.exceptions import (
     NoSuchElementException
 )
 from fake_useragent import UserAgent
-from proxybroker import Broker
 import asyncio
 import aiohttp
 
@@ -42,6 +41,49 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+async def fetch_free_proxies(limit=10):
+    """Fetch free proxies from public APIs"""
+    try:
+        logger.info(f"Fetching up to {limit} free proxies from public APIs")
+        proxies = []
+        
+        # List of free proxy APIs
+        proxy_apis = [
+            "https://www.proxy-list.download/api/v1/get?type=http",
+            "https://api.proxyscrape.com/v2/?request=getproxies&protocol=http&timeout=10000&country=all&ssl=all&anonymity=all",
+            "https://raw.githubusercontent.com/TheSpeedX/PROXY-List/master/http.txt",
+            "https://raw.githubusercontent.com/ShiftyTR/Proxy-List/master/http.txt",
+            "https://raw.githubusercontent.com/monosans/proxy-list/main/proxies/http.txt"
+        ]
+        
+        async with aiohttp.ClientSession() as session:
+            for api_url in proxy_apis:
+                if len(proxies) >= limit:
+                    break
+                    
+                try:
+                    async with session.get(api_url, timeout=10) as response:
+                        if response.status == 200:
+                            content = await response.text()
+                            # Parse the proxy list (format: IP:PORT)
+                            for line in content.splitlines():
+                                line = line.strip()
+                                if line and ":" in line:
+                                    proxies.append(line)
+                                    if len(proxies) >= limit:
+                                        break
+                except Exception as e:
+                    logger.warning(f"Error fetching proxies from {api_url}: {e}")
+                    continue
+        
+        # Deduplicate and limit
+        proxies = list(set(proxies))[:limit]
+        logger.info(f"Successfully fetched {len(proxies)} proxies")
+        return proxies
+    except Exception as e:
+        logger.error(f"Error in fetch_free_proxies: {e}")
+        return []
+
 class GmailAccountCreator:
     def __init__(self, config: dict):
         self.config = config
@@ -54,32 +96,15 @@ class GmailAccountCreator:
         self.max_concurrent = config.get('max_concurrent', 2)
 
     async def fetch_proxies(self) -> List[str]:
-        """Fetch proxies asynchronously using proxybroker"""
+        """Fetch proxies asynchronously using custom proxy fetcher"""
         try:
-            proxies = []
-            queue = asyncio.Queue()
-            broker = Broker(queue)
-            tasks = [
-                broker.find(
-                    types=['HTTP', 'HTTPS'],
-                    limit=self.config.get('proxy_limit', 10)
-                ),
-                self._consume_proxies(queue, proxies)
-            ]
-            await asyncio.gather(*tasks)
+            # Use our custom proxy fetcher instead of proxybroker
+            proxies = await fetch_free_proxies(limit=self.config.get('proxy_limit', 10))
             logger.info(f"Fetched {len(proxies)} proxies")
             return proxies
         except Exception as e:
             logger.error(f"Error fetching proxies: {e}")
             return []
-
-    async def _consume_proxies(self, queue: asyncio.Queue, proxies: List[str]):
-        """Consume proxies from the queue"""
-        while True:
-            proxy = await queue.get()
-            if proxy is None:
-                break
-            proxies.append(f"{proxy.host}:{proxy.port}")
 
     def load_user_agents(self) -> List[str]:
         """Load user agents using fake_useragent"""
@@ -256,7 +281,7 @@ class GmailAccountCreator:
 
             # Run tasks concurrently with rate limiting
             with ThreadPoolExecutor(max_workers=self.max_concurrent) as executor:
-                await asyncio.gather(*[asyncio.get_event_loop().run_in_executor(executor, partial(asyncio.run, task)) for task in tasks])
+                await asyncio.gather(*[asyncio.to_thread(lambda t=task: asyncio.run(t)) for t in tasks])
 
             logger.info(f"Created {len(self.created_accounts)} accounts successfully")
 
