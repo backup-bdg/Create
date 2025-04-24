@@ -16,13 +16,23 @@ try {
   }
   
   // Load npm dependencies with error handling
-  let puppeteer, TwoCaptcha, twilio;
+  let puppeteer, TwoCaptcha, twilio, fetch;
   try {
     puppeteer = require('puppeteer');
-    console.log('Successfully loaded puppeteer');
+    console.log('Successfully loaded puppeteer version:', puppeteer.version());
   } catch (error) {
     console.error('Error loading puppeteer:', error.message);
+    console.error('Try running: npm install puppeteer@latest');
     process.exit(1);
+  }
+  
+  // Load node-fetch for better API requests
+  try {
+    fetch = require('node-fetch');
+    console.log('Successfully loaded node-fetch');
+  } catch (error) {
+    console.log('node-fetch not available, will use default fetch if needed');
+    // Continue without node-fetch, not critical
   }
   
   try {
@@ -142,9 +152,38 @@ try {
         return action();
       },
       setupStealthBrowser: async (puppeteer) => {
+        // Check puppeteer version to use appropriate headless mode
+        let headlessMode;
+        try {
+          const version = puppeteer.version();
+          const majorVersion = parseInt(version.split('.')[0], 10);
+          
+          // Newer versions of Puppeteer use headless: 'new' instead of headless: true
+          headlessMode = majorVersion >= 21 ? 'new' : true;
+          console.log(`Using headless mode '${headlessMode}' for Puppeteer v${version}`);
+        } catch (e) {
+          console.log('Error determining Puppeteer version, using default headless mode');
+          headlessMode = true;
+        }
+        
+        // Enhanced browser configuration
         return puppeteer.launch({
-          headless: true,
-          args: ['--no-sandbox', '--disable-setuid-sandbox']
+          headless: headlessMode,
+          args: [
+            '--no-sandbox',
+            '--disable-setuid-sandbox',
+            '--disable-dev-shm-usage',
+            '--disable-accelerated-2d-canvas',
+            '--disable-gpu',
+            '--window-size=1920,1080',
+            '--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/112.0.0.0 Safari/537.36'
+          ],
+          defaultViewport: {
+            width: 1920,
+            height: 1080
+          },
+          ignoreHTTPSErrors: true,
+          protocolTimeout: 60000
         });
       },
       humanDelay: async () => {
@@ -238,6 +277,10 @@ try {
 }
 
 // Utility functions
+
+// Helper function for sleeping/waiting
+const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+
 const generateRandomString = (length = 10) => {
   return randomBytes(Math.ceil(length / 2))
     .toString('hex')
@@ -1065,98 +1108,207 @@ async function createAppleID(browser, profile, isGmail) {
 async function createAccounts() {
   utils.log('Initializing browser...');
   
-  // Use the stealth browser setup from utils
-  const browser = await utils.setupStealthBrowser(puppeteer);
-  
+  let browser = null;
   const accountsData = [];
+  let currentAttempt = 1;
+  const MAX_GLOBAL_ATTEMPTS = 3;
   
-  try {
-    utils.log(`Starting account creation process for ${ACCOUNTS_COUNT} account(s)...`);
-    
-    for (let i = 0; i < ACCOUNTS_COUNT; i++) {
-      utils.log(`Creating account ${i + 1} of ${ACCOUNTS_COUNT}...`);
+  while (currentAttempt <= MAX_GLOBAL_ATTEMPTS) {
+    try {
+      utils.log(`Global attempt ${currentAttempt}/${MAX_GLOBAL_ATTEMPTS}`);
       
-      // Try to create both Gmail and Outlook accounts with retries
-      let emailProfile = null;
-      let isGmail = false;
-      
-      // Try Gmail first
-      try {
-        utils.log('Attempting to create Gmail account...', 'info');
-        const profile = generateRandomProfile();
-        
-        emailProfile = await utils.retry(
-          () => createGmailAccount(browser, profile),
-          {
-            maxRetries: 2,
-            retryDelay: 5000,
-            name: 'Gmail account creation'
-          }
-        );
-        
-        isGmail = true;
-        utils.log('Successfully created Gmail account', 'success');
-      } catch (gmailError) {
-        utils.log('Gmail account creation failed, trying Outlook: ' + gmailError.message, 'error');
-        
-        // Fallback to Outlook
+      // Use the stealth browser setup from utils
+      if (!browser || !browser.isConnected()) {
+        utils.log('Creating new browser instance...');
         try {
-          utils.log('Attempting to create Outlook account...', 'info');
-          const profile = generateRandomProfile();
+          browser = await utils.setupStealthBrowser(puppeteer);
+          utils.log('Browser instance created successfully');
           
-          emailProfile = await utils.retry(
-            () => createOutlookAccount(browser, profile),
-            {
-              maxRetries: 2,
-              retryDelay: 5000,
-              name: 'Outlook account creation'
-            }
-          );
-          
-          isGmail = false;
-          utils.log('Successfully created Outlook account', 'success');
-        } catch (outlookError) {
-          utils.log('Outlook account creation failed: ' + outlookError.message, 'error');
-          throw new Error('Failed to create any email account');
+          // Test browser by navigating to a simple page
+          const testPage = await browser.newPage();
+          await testPage.goto('https://example.com', { timeout: 30000 });
+          utils.log('Browser navigation test successful');
+          await testPage.close();
+        } catch (browserError) {
+          utils.log(`Browser initialization error: ${browserError.message}`, 'error');
+          await sleep(5000); // Wait before retry
+          currentAttempt++;
+          continue;
         }
       }
       
-      // Create Apple ID using the email account
-      if (emailProfile) {
+      utils.log(`Starting account creation process for ${ACCOUNTS_COUNT} account(s)...`);
+      
+      // Track successful accounts
+      const successfulAccounts = [];
+      
+      for (let i = 0; i < ACCOUNTS_COUNT; i++) {
+        utils.log(`Creating account ${i + 1} of ${ACCOUNTS_COUNT}...`);
+        
+        // Create a different random profile for each attempt
+        const gmailProfile = generateRandomProfile();
+        const outlookProfile = generateRandomProfile();
+        
+        // Try to create both Gmail and Outlook accounts with retries
+        let emailProfile = null;
+        let isGmail = false;
+        
+        // Throttle account creation attempts to avoid rate limiting
+        if (i > 0) {
+          const randomDelay = Math.floor(Math.random() * 5000) + 5000;
+          utils.log(`Adding random delay (${randomDelay}ms) between account creations to avoid rate limiting...`);
+          await new Promise(resolve => setTimeout(resolve, randomDelay));
+        }
+        
+        // Try both email providers with fallback strategy
         try {
-          utils.log('Attempting to create Apple ID...', 'info');
+          // Try Gmail first
+          try {
+            utils.log('Attempting to create Gmail account...', 'info');
+            emailProfile = await utils.retry(
+              () => createGmailAccount(browser, gmailProfile),
+              {
+                maxRetries: 3,
+                retryDelay: 8000,
+                name: 'Gmail account creation',
+                onRetry: async (error, attempt) => {
+                  utils.log(`Gmail attempt ${attempt} failed: ${error.message}. Retrying...`, 'warn');
+                  // If there's a page navigation or timeout issue, restart the browser
+                  if (error.message.includes('timeout') || error.message.includes('navigation')) {
+                    utils.log('Detected navigation issue, restarting browser before retry...', 'warn');
+                    try {
+                      await browser.close();
+                    } catch (e) { /* Ignore close errors */ }
+                    browser = await utils.setupStealthBrowser(puppeteer);
+                  }
+                }
+              }
+            );
+            
+            isGmail = true;
+            utils.log('Successfully created Gmail account', 'success');
+          } catch (gmailError) {
+            utils.log('Gmail account creation failed, trying Outlook: ' + gmailError.message, 'error');
+            
+            // Fallback to Outlook
+            emailProfile = await utils.retry(
+              () => createOutlookAccount(browser, outlookProfile),
+              {
+                maxRetries: 3,
+                retryDelay: 8000,
+                name: 'Outlook account creation',
+                onRetry: async (error, attempt) => {
+                  utils.log(`Outlook attempt ${attempt} failed: ${error.message}. Retrying...`, 'warn');
+                  // If there's a page navigation or timeout issue, restart the browser
+                  if (error.message.includes('timeout') || error.message.includes('navigation')) {
+                    utils.log('Detected navigation issue, restarting browser before retry...', 'warn');
+                    try {
+                      await browser.close();
+                    } catch (e) { /* Ignore close errors */ }
+                    browser = await utils.setupStealthBrowser(puppeteer);
+                  }
+                }
+              }
+            );
+            
+            isGmail = false;
+            utils.log('Successfully created Outlook account', 'success');
+          }
           
-          const appleAccount = await utils.retry(
-            () => createAppleID(browser, emailProfile, isGmail),
-            {
-              maxRetries: 2,
-              retryDelay: 5000,
-              name: 'Apple ID creation'
+          // Create Apple ID using the email account
+          if (emailProfile) {
+            try {
+              utils.log('Attempting to create Apple ID...', 'info');
+              
+              const appleAccount = await utils.retry(
+                () => createAppleID(browser, emailProfile, isGmail),
+                {
+                  maxRetries: 3,
+                  retryDelay: 8000,
+                  name: 'Apple ID creation',
+                  onRetry: async (error, attempt) => {
+                    utils.log(`Apple ID creation attempt ${attempt} failed: ${error.message}. Retrying...`, 'warn');
+                    // If there's a page navigation or timeout issue, restart the browser
+                    if (error.message.includes('timeout') || error.message.includes('navigation')) {
+                      utils.log('Detected navigation issue, restarting browser before retry...', 'warn');
+                      try {
+                        await browser.close();
+                      } catch (e) { /* Ignore close errors */ }
+                      browser = await utils.setupStealthBrowser(puppeteer);
+                    }
+                  }
+                }
+              );
+              
+              // Save this account immediately to not lose progress
+              successfulAccounts.push(appleAccount);
+              
+              // Also save to file after each successful account
+              const tempAccountsText = successfulAccounts.map(account => 
+                `Apple ID: ${account.appleEmail}\nPassword: ${account.applePassword}\n`
+              ).join('\n');
+              fs.writeFileSync('accounts.txt', tempAccountsText);
+              
+              utils.log(`Account creation ${i + 1} completed successfully`, 'success');
+              utils.log(`Saved account details to accounts.txt`, 'info');
+            } catch (appleError) {
+              utils.log('Apple ID creation failed: ' + appleError.message, 'error');
+              utils.log('Moving to next account...', 'info');
+              // Continue with next account instead of failing completely
+              continue;
             }
-          );
-          
-          accountsData.push(appleAccount);
-          utils.log(`Account creation ${i + 1} completed successfully`, 'success');
-        } catch (appleError) {
-          utils.log('Apple ID creation failed: ' + appleError.message, 'error');
-          throw appleError;
+          }
+        } catch (accountError) {
+          utils.log(`Account creation ${i + 1} failed completely: ${accountError.message}`, 'error');
+          utils.log('Moving to next account...', 'info');
+          // Continue with next account instead of failing completely
+          continue;
+        }
+      }
+      
+      // Update the main accountsData array with successful accounts
+      accountsData.push(...successfulAccounts);
+      
+      // Save accounts to file (final version)
+      const accountsText = accountsData.map(account => 
+        `Apple ID: ${account.appleEmail}\nPassword: ${account.applePassword}\n`
+      ).join('\n');
+      
+      fs.writeFileSync('accounts.txt', accountsText);
+      utils.log(`${accountsData.length} account details saved to accounts.txt`, 'success');
+      
+      // If we reached here, we completed the process successfully
+      break;
+      
+    } catch (error) {
+      utils.log(`Error in global attempt ${currentAttempt}: ${error.message}`, 'error');
+      currentAttempt++;
+      
+      // Wait before retry
+      if (currentAttempt <= MAX_GLOBAL_ATTEMPTS) {
+        utils.log(`Waiting 30 seconds before retry...`, 'info');
+        await new Promise(resolve => setTimeout(resolve, 30000));
+      }
+    } finally {
+      // Always close browser at the end of each attempt
+      if (browser) {
+        try {
+          await browser.close();
+          utils.log('Browser closed successfully');
+        } catch (closeError) {
+          utils.log(`Error closing browser: ${closeError.message}`, 'error');
         }
       }
     }
-    
-    // Save accounts to file
-    const accountsText = accountsData.map(account => 
-      `Apple ID: ${account.appleEmail}\nPassword: ${account.applePassword}\n`
-    ).join('\n');
-    
-    fs.writeFileSync('accounts.txt', accountsText);
-    utils.log(`${accountsData.length} account details saved to accounts.txt`, 'success');
-  } catch (error) {
-    utils.log('Error in account creation process: ' + error.message, 'error');
-    throw error;
-  } finally {
-    await browser.close();
   }
+  
+  // Check if we succeeded in creating any accounts
+  if (accountsData.length === 0) {
+    utils.log('Failed to create any accounts after all attempts', 'error');
+    throw new Error('Failed to create any accounts after all attempts');
+  }
+  
+  return accountsData;
 }
 
 // Run the main function with comprehensive error handling
