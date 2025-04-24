@@ -7,10 +7,11 @@
     "start": "node create-accounts.js"
   },
   "dependencies": {
-    "puppeteer": "^20.7.3",
+    "puppeteer": "^22.8.2",
     "2captcha": "^3.0.6",
-    "twilio": "^4.11.0",
-    "two-captcha": "^1.0.13"
+    "twilio": "^4.23.0",
+    "two-captcha": "^1.0.13",
+    "node-fetch": "^2.7.0"
   },
   "engines": {
     "node": ">=14.0.0"
