@@ -31,6 +31,41 @@ async function createGmailAccounts(options = {}) {
   
   log('Starting Gmail account creation using Python script...', 'info');
   
+  // Install required Python dependencies first
+  log('Installing required Python dependencies...', 'info');
+  try {
+    const requirementsPath = path.join(__dirname, 'Gmail', 'requirements.txt');
+    await new Promise((resolve, reject) => {
+      const pipProcess = spawn('pip', ['install', '-r', requirementsPath]);
+      
+      pipProcess.stdout.on('data', (data) => {
+        log(`Pip output: ${data.toString().trim()}`, 'info');
+      });
+      
+      pipProcess.stderr.on('data', (data) => {
+        log(`Pip error: ${data.toString().trim()}`, 'warn');
+      });
+      
+      pipProcess.on('close', (code) => {
+        if (code !== 0) {
+          log(`Pip process exited with code ${code}`, 'error');
+          reject(new Error(`Failed to install Python dependencies with code ${code}`));
+        } else {
+          log('Python dependencies installed successfully', 'success');
+          resolve();
+        }
+      });
+      
+      pipProcess.on('error', (error) => {
+        log(`Error spawning pip process: ${error.message}`, 'error');
+        reject(new Error(`Failed to start pip: ${error.message}`));
+      });
+    });
+  } catch (error) {
+    log(`Failed to install Python dependencies: ${error.message}`, 'error');
+    throw new Error(`Failed to install Python dependencies: ${error.message}`);
+  }
+  
   // Modify the Python script to create the specified number of accounts
   const originalScript = fs.readFileSync(scriptPath, 'utf8');
   const modifiedScript = originalScript.replace(
