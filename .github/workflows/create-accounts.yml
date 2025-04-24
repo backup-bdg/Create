@@ -36,7 +36,7 @@ jobs:
         run: node create-accounts.js
       
       - name: Upload accounts file
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: created-accounts
           path: accounts.txt
