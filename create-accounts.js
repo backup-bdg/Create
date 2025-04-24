@@ -26,10 +26,55 @@ try {
   }
   
   try {
-    ({ TwoCaptcha } = require('2captcha'));
-    console.log('Successfully loaded 2captcha');
+    // The 2captcha package exports a Solver class, not TwoCaptcha
+    console.log('Attempting to load 2captcha package...');
+    let twoCaptchaModule;
+    
+    try {
+      // Try loading the 2captcha package first
+      twoCaptchaModule = require('2captcha');
+      console.log('Successfully loaded 2captcha, available exports:', Object.keys(twoCaptchaModule));
+      
+      // Check if the module has the expected structure
+      if (twoCaptchaModule.Solver) {
+        console.log('Using Solver from 2captcha module');
+        // Store the Solver class for later use
+        TwoCaptcha = twoCaptchaModule.Solver;
+      } else if (twoCaptchaModule.TwoCaptcha) {
+        console.log('Using TwoCaptcha from 2captcha module');
+        TwoCaptcha = twoCaptchaModule.TwoCaptcha;
+      } else if (typeof twoCaptchaModule === 'function') {
+        console.log('Using 2captcha module as a constructor directly');
+        TwoCaptcha = twoCaptchaModule;
+      } else {
+        throw new Error('Could not find a usable constructor in the 2captcha module');
+      }
+    } catch (captchaError) {
+      console.error('Error loading 2captcha package:', captchaError.message);
+      
+      // Try loading the alternative two-captcha package
+      console.log('Attempting to load two-captcha package as an alternative...');
+      try {
+        const twoCaptchaAlt = require('two-captcha');
+        console.log('Successfully loaded two-captcha (alternative), exports:', Object.keys(twoCaptchaAlt));
+        
+        if (twoCaptchaAlt.Solver) {
+          TwoCaptcha = twoCaptchaAlt.Solver;
+          console.log('Using Solver from two-captcha module');
+        } else if (typeof twoCaptchaAlt === 'function') {
+          TwoCaptcha = twoCaptchaAlt;
+          console.log('Using two-captcha module as a constructor directly');
+        } else {
+          throw new Error('Could not find a usable constructor in the two-captcha module');
+        }
+      } catch (altError) {
+        console.error('Error loading alternative two-captcha package:', altError.message);
+        throw new Error('Failed to load any CAPTCHA solving library');
+      }
+    }
   } catch (error) {
-    console.error('Error loading 2captcha:', error.message);
+    console.error('Error loading CAPTCHA modules:', error.message);
+    console.error('This is a critical error. Please check the 2captcha/two-captcha package installation.');
     process.exit(1);
   }
   
@@ -156,9 +201,41 @@ const TWILIO_PHONE_NUMBER = countryCode + areaCode + phonePrefix + phoneSuffix;
 // Number of accounts to create (defaults to 1)
 const ACCOUNTS_COUNT = parseInt(process.env.ACCOUNTS_COUNT || '1', 10);
 
-// Initialize APIs
-const solver = new TwoCaptcha(TWOCAPTCHA_API_KEY);
-const twilioClient = twilio(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN);
+// Initialize APIs with robust error handling
+let solver, twilioClient;
+try {
+  console.log('Initializing 2captcha solver with API key...');
+  solver = new TwoCaptcha(TWOCAPTCHA_API_KEY);
+  console.log('Successfully initialized 2captcha solver');
+} catch (error) {
+  console.error('Error initializing 2captcha solver:', error);
+  console.error('This might be due to an incompatible API or constructor. Trying alternative initialization...');
+  
+  try {
+    // Try alternative initialization methods
+    if (typeof TwoCaptcha.create === 'function') {
+      solver = TwoCaptcha.create({ apiKey: TWOCAPTCHA_API_KEY });
+    } else if (typeof TwoCaptcha.createSolver === 'function') {
+      solver = TwoCaptcha.createSolver(TWOCAPTCHA_API_KEY);
+    } else {
+      console.error('Could not find alternative initialization method. Exiting.');
+      process.exit(1);
+    }
+    console.log('Successfully initialized 2captcha solver using alternative method');
+  } catch (altError) {
+    console.error('All initialization attempts failed:', altError);
+    process.exit(1);
+  }
+}
+
+try {
+  console.log('Initializing Twilio client...');
+  twilioClient = twilio(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN);
+  console.log('Successfully initialized Twilio client');
+} catch (error) {
+  console.error('Error initializing Twilio client:', error);
+  process.exit(1);
+}
 
 // Utility functions
 const generateRandomString = (length = 10) => {
@@ -230,16 +307,62 @@ async function solveCaptcha(page, sitekey, url) {
   
   return await utils.retry(async () => {
     try {
-      const result = await solver.recaptcha({
-        sitekey,
-        url,
-        invisible: 1,
-        enterprise: 0
+      // Log complete debugging information
+      console.log('Solving CAPTCHA with:', {
+        solver: typeof solver,
+        sitekey: sitekey,
+        url: url
       });
       
-      utils.log('CAPTCHA solved: ' + result.data.substring(0, 15) + '...');
-      return result.data;
+      let result;
+      // Handle different possible API structures of the solver
+      if (typeof solver.recaptcha === 'function') {
+        // Standard API as documented
+        console.log('Using solver.recaptcha method');
+        result = await solver.recaptcha({
+          sitekey,
+          url,
+          invisible: 1,
+          enterprise: 0
+        });
+      } else if (typeof solver.solve === 'function') {
+        // Alternative API
+        console.log('Using solver.solve method');
+        result = await solver.solve({
+          method: 'recaptcha',
+          googlekey: sitekey,
+          pageurl: url,
+          invisible: 1
+        });
+      } else if (typeof solver.solveRecaptchaV2 === 'function') {
+        // Another possible API
+        console.log('Using solver.solveRecaptchaV2 method');
+        result = await solver.solveRecaptchaV2({
+          sitekey,
+          url,
+          invisible: true
+        });
+      } else {
+        throw new Error('No compatible CAPTCHA solving method found in the solver');
+      }
+      
+      // Handle different possible result structures
+      let token;
+      if (result && result.data) {
+        token = result.data;
+      } else if (result && result.token) {
+        token = result.token;
+      } else if (typeof result === 'string') {
+        token = result;
+      } else {
+        console.log('Unexpected result structure:', result);
+        throw new Error('Unexpected result structure from CAPTCHA solver');
+      }
+      
+      utils.log('CAPTCHA solved successfully with token: ' + token.substring(0, 15) + '...');
+      return token;
     } catch (error) {
+      console.error('Full CAPTCHA error details:', error);
       utils.log('CAPTCHA solving error: ' + error.message, 'error');
       throw new Error(`Failed to solve CAPTCHA: ${error.message}`);
     }
