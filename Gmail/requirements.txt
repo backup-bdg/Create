@@ -4,5 +4,5 @@ cryptography==41.0.5
 fernet==1.0.1
 psutil==7.0.0
 fake-useragent==1.4.0
-proxybroker==0.3.2
-aiohttp==3.9.3
+proxybroker
+aiohttp==3.7.4
