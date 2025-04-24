@@ -18,6 +18,11 @@ accounts.txt
 logs/
 *.log
 
+# Debug screenshots
+screenshots/
+*.png
+*.html
+
 # OS specific files
 .DS_Store
 Thumbs.db
