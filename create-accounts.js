@@ -266,9 +266,11 @@ try {
     process.exit(1);
   }
 
-// Configuration
-const ACCOUNTS_COUNT = 1; // Number of accounts to create
-const APPLE_ID_CREATION_ENABLED = true; // Set to false to skip Apple ID creation
+// Configuration from environment variables or defaults
+const ACCOUNTS_COUNT = parseInt(process.env.ACCOUNTS_COUNT || '1', 10);
+const APPLE_ID_CREATION_ENABLED = process.env.APPLE_ID_CREATION_ENABLED === 'true';
+
+console.log(`Configuration: Creating ${ACCOUNTS_COUNT} accounts, Apple ID creation: ${APPLE_ID_CREATION_ENABLED ? 'enabled' : 'disabled'}`);
 
 // Helper function to generate a random profile
 function generateRandomProfile() {
@@ -482,6 +484,7 @@ async function createAppleID(browser, emailProfile) {
 // Main function to run the account creation process
 async function createAccounts() {
   utils.log('Initializing browser...');
+  utils.log(`Will create ${ACCOUNTS_COUNT} accounts with Apple ID creation ${APPLE_ID_CREATION_ENABLED ? 'enabled' : 'disabled'}`);
   
   let browser = null;
   const accountsData = [];

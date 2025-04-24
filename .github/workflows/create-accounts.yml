@@ -9,6 +9,11 @@ on:
         required: true
         default: '1'
         type: number
+      apple_id_creation:
+        description: 'Create Apple IDs'
+        required: false
+        default: false
+        type: boolean
 
 jobs:
   create-accounts:
@@ -24,7 +29,18 @@ jobs:
           node-version: '18.x'
           cache: 'npm'
       
-      - name: Install dependencies
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+          cache: 'pip'
+      
+      - name: Install Python dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r Gmail/requirements.txt
+      
+      - name: Install Node.js dependencies
         run: |
           echo "Using package.json from repository..."
           cat package.json
@@ -102,12 +118,17 @@ jobs:
           ls -la
           echo "Node.js version:"
           node --version
+          echo "Python version:"
+          python --version
           echo "Checking module paths:"
           node -e "console.log('Module paths:', module.paths)"
           echo "Checking utils.js file:"
           cat utils.js | head -10
           
       - name: Create accounts with verbose logging
+        env:
+          ACCOUNTS_COUNT: ${{ github.event.inputs.accounts_count }}
+          APPLE_ID_CREATION_ENABLED: ${{ github.event.inputs.apple_id_creation }}
         run: |
           echo "Ensuring utils.js is in the correct location:"
           cp utils.js ./utils.js 2>/dev/null || echo "utils.js already in place"
