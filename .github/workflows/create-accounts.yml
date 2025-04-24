@@ -37,14 +37,22 @@ jobs:
         run: |
           sudo apt-get update
           # Install modern Chrome dependencies (for Ubuntu 22.04)
+          # Enable universe repository (for some dependencies)
+          sudo add-apt-repository universe
+          sudo apt-get update
+
+          # Install dependencies in smaller groups for better error handling
+          echo "Installing basic tools..."
           sudo apt-get install -y --no-install-recommends \
             wget \
             unzip \
             fontconfig \
             locales \
             ca-certificates \
-            fonts-liberation \
-            libasound2 \
+            fonts-liberation
+            
+          echo "Installing libraries part 1..."
+          sudo apt-get install -y --no-install-recommends \
             libatk-bridge2.0-0 \
             libatk1.0-0 \
             libc6 \
@@ -52,14 +60,20 @@ jobs:
             libcups2 \
             libdbus-1-3 \
             libexpat1 \
-            libfontconfig1 \
+            libfontconfig1
+            
+          echo "Installing libraries part 2..."
+          sudo apt-get install -y --no-install-recommends \
             libgbm1 \
             libglib2.0-0 \
             libgtk-3-0 \
             libnspr4 \
             libnss3 \
             libpango-1.0-0 \
-            libpangocairo-1.0-0 \
+            libpangocairo-1.0-0
+            
+          echo "Installing libraries part 3..."
+          sudo apt-get install -y --no-install-recommends \
             libstdc++6 \
             libx11-6 \
             libx11-xcb1 \
@@ -76,6 +90,10 @@ jobs:
             libxtst6 \
             lsb-release \
             xdg-utils
+            
+          # Try to install ALSA as an alternative to libasound2 (if needed)
+          echo "Attempting to install audio libraries..."
+          sudo apt-get install -y --no-install-recommends alsa-base alsa-utils || true
       
       - name: Create accounts
         run: node create-accounts.js
